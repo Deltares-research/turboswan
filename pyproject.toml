@@ -1,0 +1,15 @@
+[project]
+name = "turboswan"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "keras-tuner>=1.4.8",
+    "matplotlib>=3.11.1",
+    "netcdf4>=1.7.4",
+    "pandas>=3.0.5",
+    "seaborn>=0.13.2",
+    "tensorflow>=2.21.0",
+    "xarray>=2026.7.0",
+]

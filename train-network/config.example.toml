@@ -1,0 +1,8 @@
+[training]
+model_dir = "/path/to/models"
+model_version = "turbo_swan_v0018"
+tfrecord_dir = "/path/to/tfrecords/run4"
+learning_rate = 1e-4
+n_epochs = 50
+batch_size = 32
+seed = 0

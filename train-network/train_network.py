@@ -1,31 +1,87 @@
-import pathlib
-import random
+import argparse
 import shutil
+import pathlib
+import tomllib
 
-import matplotlib.pyplot as plt
 import numpy as np
-import numpy.ma as ma
 
 import tensorflow as tf
-import xarray as xr
 
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import LearningRateScheduler, ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 import create_datasets
 import TurboSwanModel
 
-if __name__ == "__main__":
-    model_version = "turbo_swan_v0018"
 
+def get_config_path() -> pathlib.Path:
     file_dir = pathlib.Path(__file__).parent
-    src_dir = pathlib.Path(__file__).parent.parent.resolve()
-    model_dir = src_dir / f"trained_models/{model_version}"
+    default_config_path = file_dir / "config.toml"
+
+    parser = argparse.ArgumentParser(
+        description="Train the TurboSwan model from a TOML configuration file."
+    )
+    parser.add_argument(
+        "--config",
+        type=pathlib.Path,
+        default=default_config_path,
+        help=(
+            "Path to the training config TOML file "
+            f"(default: {default_config_path})."
+        ),
+    )
+    args = parser.parse_args()
+    return args.config.resolve()
+
+
+def load_training_config(config_path: pathlib.Path) -> dict:
+    if not config_path.exists():
+        example_path = config_path.parent / "config.example.toml"
+        raise FileNotFoundError(
+            "Training config not found at "
+            f"{config_path}. Create it from {example_path} or pass --config."
+        )
+
+    with config_path.open("rb") as config_file:
+        config = tomllib.load(config_file)
+
+    training_config = config.get("training")
+    if training_config is None:
+        raise KeyError("Missing [training] section in config file.")
+
+    required_keys = [
+        "model_dir",
+        "model_version",
+        "tfrecord_dir",
+        "learning_rate",
+        "n_epochs",
+        "batch_size",
+        "seed",
+    ]
+    missing_keys = [key for key in required_keys if key not in training_config]
+    if missing_keys:
+        raise KeyError(
+            "Missing required training config values: " + ", ".join(missing_keys)
+        )
+
+    return training_config
+
+
+if __name__ == "__main__":
+    file_dir = pathlib.Path(__file__).parent
+    config_path = get_config_path()
+    training_config = load_training_config(config_path)
+
+    model_version = training_config["model_version"]
+    model_dir = (
+        pathlib.Path(training_config["src_dir"]).expanduser().resolve()
+        / f"trained_models/{model_version}"
+    )
     model_dir.mkdir(exist_ok=True, parents=True)
 
     shutil.copytree(file_dir, model_dir / file_dir.name, dirs_exist_ok=True)
 
-    tfrecord_dir = pathlib.Path("/gpfs/work2/0/prjs1027/tfrecords/run4")
+    tfrecord_dir = pathlib.Path(training_config["tfrecord_dir"]).expanduser().resolve()
 
     train_dir = tfrecord_dir / "train_data"
     val_dir = tfrecord_dir / "val_data"
@@ -39,9 +95,9 @@ if __name__ == "__main__":
 
     valid_mask = np.load(tfrecord_dir / "valid-mask.npy")
 
-    learning_rate = 1e-4
-    n_epochs = 50
-    batch_size = 32
+    learning_rate = training_config["learning_rate"]
+    n_epochs = training_config["n_epochs"]
+    batch_size = training_config["batch_size"]
     steps_per_execution = 1
 
     raster_shape = (481, 421, 1 * len(input_variables))
@@ -49,7 +105,7 @@ if __name__ == "__main__":
     widths = [16, 32, 64, 128, 256, 256]
     block_depth = 3
 
-    seed = 0
+    seed = training_config["seed"]
 
     min_max_ds = create_datasets.load_min_max_ds(
         tfrecord_dir / "min_max_files/min-max-values-all.nc",
