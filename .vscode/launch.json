@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "jira_sync: sync",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "jira_sync.sync",
+            "envFile": "${workspaceFolder}/.github/jira_sync/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "jira_sync: pytest (current file)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "${file}",
+                "-v"
+            ],
+            "envFile": "${workspaceFolder}/.github/jira_sync/.env",
+            "justMyCode": true
+        }
+    ]
+}

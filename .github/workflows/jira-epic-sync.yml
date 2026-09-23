@@ -1,0 +1,39 @@
+name: Jira epic sync
+
+# Reconciles both systems when issues or pull requests change and on a schedule.
+# Requires repo secrets: JIRA_BASE_URL, JIRA_USER_EMAIL, JIRA_API_TOKEN;
+# and a repository variable: JIRA_EPIC_KEY.
+on:
+  issues:
+    types: [opened, edited, closed, reopened]
+  pull_request:
+    types: [opened, edited, closed, reopened]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install ./.github/jira_sync
+
+      - name: Sync Jira and GitHub
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EPIC_KEY: ${{ vars.JIRA_EPIC_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python -m jira_sync.epic_sync

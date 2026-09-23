@@ -1,0 +1,20 @@
+[project]
+name = "jira-epic-sync"
+version = "0.1.0"
+description = "GitHub Actions helper scripts for two-way GitHub <-> Jira epic sync"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

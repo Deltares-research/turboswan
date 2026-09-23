@@ -1,0 +1,7 @@
+{
+    "python.testing.pytestArgs": [
+        ".github/jira_sync/tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}
