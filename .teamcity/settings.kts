@@ -2,7 +2,7 @@ import buildTypes.JiraEpicSync
 import buildTypes.TestJiraSync
 import jetbrains.buildServer.configs.kotlin.*
 
-version = "2026.1"
+version = "2026.2"
 
 project {
     description = "Jira to github epic sync"
