@@ -1,6 +1,7 @@
 import buildTypes.JiraEpicSync
 import buildTypes.TestJiraSync
 import jetbrains.buildServer.configs.kotlin.*
+import jetbrains.buildServer.configs.kotlin.projectFeatures.dockerRegistry
 
 version = "2026.2"
 
@@ -27,6 +28,13 @@ project {
             url = "https://containers.deltares.nl/"
             userName = "%harbor-user%"
             password = "%harbor-secret%"
+        }
+        feature {
+            id = "PROJECT_EXT_1"
+            type = "OAuthProvider"
+            param("displayName", "Keeper Vault TurboSwan")
+            param("secure:client-secret", DslContext.getParameter("keeper-client-secret"))
+            param("providerType", "teamcity-ksm")
         }
     }
 
