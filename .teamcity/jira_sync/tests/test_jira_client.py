@@ -83,6 +83,23 @@ def test_adf_to_text_handles_none_and_empty():
 
 
 @patch("jira_sync.jira_client.requests.request")
+@pytest.mark.parametrize(
+    ("status_code", "is_missing"), [(404, True), (403, False), (500, False)]
+)
+def test_issue_is_missing_only_for_not_found(mock_request, status_code, is_missing):
+    # Arrange
+    mock_request.return_value = _mock_response(
+        ok=status_code < 400, status_code=status_code
+    )
+
+    # Act
+    result = jira_client.issue_is_missing("PROJ-1")
+
+    # Assert
+    assert result is is_missing
+
+
+@patch("jira_sync.jira_client.requests.request")
 def test_search_paginates_until_last_page(mock_request):
     # Arrange
     mock_request.side_effect = [

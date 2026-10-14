@@ -63,13 +63,27 @@ def update_issue(number: int, **fields: Any) -> bool:
     return resp.ok
 
 
+def list_sub_issues(parent_number: int) -> list[dict]:
+    sub_issues: list[dict] = []
+    page = 1
+    while True:
+        resp = _request(
+            "GET",
+            f"/issues/{parent_number}/sub_issues",
+            params={"per_page": 100, "page": page},
+        )
+        if not resp.ok:
+            return []
+        data = resp.json()
+        page_items = data if isinstance(data, list) else data.get("sub_issues", [])
+        sub_issues.extend(page_items)
+        if len(page_items) < 100:
+            return sub_issues
+        page += 1
+
+
 def list_sub_issue_ids(parent_number: int) -> set[int]:
-    resp = _request("GET", f"/issues/{parent_number}/sub_issues")
-    if not resp.ok:
-        return set()
-    data = resp.json()
-    sub_issues = data if isinstance(data, list) else data.get("sub_issues", [])
-    return {issue["id"] for issue in sub_issues}
+    return {issue["id"] for issue in list_sub_issues(parent_number)}
 
 
 def add_sub_issue(parent_number: int, sub_issue_id: int) -> bool:
@@ -79,6 +93,33 @@ def add_sub_issue(parent_number: int, sub_issue_id: int) -> bool:
         json={"sub_issue_id": sub_issue_id},
     )
     return resp.ok
+
+
+def delete_issue(node_id: str) -> bool:
+    query = """
+    mutation DeleteIssue($issueId: ID!) {
+      deleteIssue(input: {issueId: $issueId}) {
+        clientMutationId
+      }
+    }
+    """
+    resp = requests.request(
+        "POST",
+        f"{API_BASE}/graphql",
+        headers=_headers(),
+        json={"query": query, "variables": {"issueId": node_id}},
+    )
+    if not resp.ok:
+        print(
+            f"GitHub GraphQL deleteIssue failed: {resp.status_code} {resp.text}",
+            file=sys.stderr,
+        )
+        return False
+    result = resp.json()
+    if result.get("errors"):
+        print(f"GitHub GraphQL deleteIssue failed: {result['errors']}", file=sys.stderr)
+        return False
+    return result.get("data", {}).get("deleteIssue") is not None
 
 
 def search_issues(query: str) -> list[dict]:

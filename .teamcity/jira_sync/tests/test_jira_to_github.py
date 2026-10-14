@@ -373,3 +373,78 @@ def test_skips_when_gh_issue_missing():
 
     # Assert
     set_state.assert_not_called()
+
+
+def test_sync_all_deletes_missing_jira_child_from_epic_parent():
+    # Arrange
+    child = {
+        "number": 10,
+        "node_id": "I_kwDO-test",
+        "body": (
+            "Description\n\n----------------------------------------\n"
+            "Automatically synced at: "
+            "https://example.atlassian.net/browse/MLPS-99"
+        ),
+    }
+
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=[]),
+        patch(
+            "jira_sync.jira_to_github.ensure_epic_issue",
+            return_value={"number": 99},
+        ),
+        patch("jira_sync.jira_to_github.gh.list_sub_issues", return_value=[child]),
+        patch("jira_sync.jira_to_github.jira.issue_is_missing", return_value=True),
+        patch("jira_sync.jira_to_github.gh.delete_issue") as delete_issue,
+    ):
+        # Act
+        module.sync_all()
+
+    # Assert
+    delete_issue.assert_called_once_with("I_kwDO-test")
+
+
+def test_sync_all_preserves_existing_and_unmanaged_epic_subissues():
+    # Arrange
+    children = [
+        {
+            "number": 10,
+            "node_id": "I_kwDO-existing",
+            "body": (
+                "Description\n\n----------------------------------------\n"
+                "Automatically synced at: "
+                "https://example.atlassian.net/browse/MLPS-22"
+            ),
+        },
+        {"number": 11, "node_id": "I_kwDO-manual", "body": "Manual issue"},
+    ]
+
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=[]),
+        patch(
+            "jira_sync.jira_to_github.ensure_epic_issue",
+            return_value={"number": 99},
+        ),
+        patch("jira_sync.jira_to_github.gh.list_sub_issues", return_value=children),
+        patch("jira_sync.jira_to_github.jira.issue_is_missing", return_value=False),
+        patch("jira_sync.jira_to_github.gh.delete_issue") as delete_issue,
+    ):
+        # Act
+        module.sync_all()
+
+    # Assert
+    delete_issue.assert_not_called()
+
+
+def test_sync_all_skips_deletion_without_epic_parent():
+    # Arrange
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=[]),
+        patch("jira_sync.jira_to_github.ensure_epic_issue", return_value=None),
+        patch("jira_sync.jira_to_github.gh.list_sub_issues") as list_sub_issues,
+    ):
+        # Act
+        module.sync_all()
+
+    # Assert
+    list_sub_issues.assert_not_called()

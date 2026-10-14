@@ -92,6 +92,11 @@ def get_issue(key: str) -> dict | None:
     return resp.json() if resp.ok else None
 
 
+def issue_is_missing(key: str) -> bool:
+    resp = _request("GET", f"issue/{key}")
+    return resp.status_code == 404
+
+
 def update_description(key: str, description: str) -> bool:
     resp = _request(
         "PUT",

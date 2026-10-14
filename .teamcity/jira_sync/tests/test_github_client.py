@@ -148,6 +148,28 @@ def test_list_sub_issue_ids_returns_ids(mock_request):
 
 
 @patch("jira_sync.github_client.requests.request")
+def test_list_sub_issues_paginates(mock_request):
+    # Arrange
+    first_page = [{"id": number} for number in range(100)]
+    second_page = [{"id": 100, "node_id": "I_kwDO-test"}]
+    mock_request.side_effect = [
+        _mock_response(json_data=first_page),
+        _mock_response(json_data=second_page),
+    ]
+
+    # Act
+    issues = gh.list_sub_issues(1)
+
+    # Assert
+    assert issues[-1] == second_page[0]
+    assert mock_request.call_count == 2
+    assert mock_request.call_args_list[1].kwargs["params"] == {
+        "per_page": 100,
+        "page": 2,
+    }
+
+
+@patch("jira_sync.github_client.requests.request")
 def test_add_sub_issue_posts_child_id(mock_request):
     # Arrange
     mock_request.return_value = _mock_response(ok=True)
@@ -158,6 +180,42 @@ def test_add_sub_issue_posts_child_id(mock_request):
     # Assert
     assert result is True
     assert mock_request.call_args.kwargs["json"] == {"sub_issue_id": 12}
+
+
+@patch("jira_sync.github_client.requests.request")
+def test_delete_issue_uses_graphql_node_id(mock_request):
+    # Arrange
+    mock_request.return_value = _mock_response(
+        json_data={"data": {"deleteIssue": {"clientMutationId": None}}}
+    )
+
+    # Act
+    result = gh.delete_issue("I_kwDO-test")
+
+    # Assert
+    assert result is True
+    mock_request.assert_called_once()
+    assert mock_request.call_args.args[:2] == (
+        "POST",
+        "https://api.github.com/graphql",
+    )
+    assert mock_request.call_args.kwargs["json"]["variables"] == {
+        "issueId": "I_kwDO-test"
+    }
+
+
+@patch("jira_sync.github_client.requests.request")
+def test_delete_issue_returns_false_on_graphql_error(mock_request):
+    # Arrange
+    mock_request.return_value = _mock_response(
+        json_data={"errors": [{"message": "Insufficient permissions"}]}
+    )
+
+    # Act
+    result = gh.delete_issue("I_kwDO-test")
+
+    # Assert
+    assert result is False
 
 
 @patch("jira_sync.github_client.requests.request")

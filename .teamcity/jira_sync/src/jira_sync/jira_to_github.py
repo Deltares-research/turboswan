@@ -34,6 +34,7 @@ JIRA_EPIC_KEY = os.environ["JIRA_EPIC_KEY"]
 JIRA_JQL = f'parent = "{JIRA_EPIC_KEY}"'
 
 JIRA_COMMENT_ID_RE = re.compile(r"<!-- jira-comment-id:(\S+) -->")
+JIRA_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*-\d+")
 
 # Marker prefixes used to recognize comments that were themselves produced by
 # this sync (either direction), so they're never re-mirrored and can't loop.
@@ -126,84 +127,133 @@ def sync_comments(key: str, number: int) -> None:
         print(f"{key}: mirrored Jira comment {comment_id} to GitHub #{number}")
 
 
+def delete_missing_jira_issues(
+    parent_issue: dict | None, jira_issue_keys: set[str]
+) -> None:
+    if parent_issue is None:
+        return
+
+    footer_prefix = (
+        f"Automatically synced at: {os.environ['JIRA_BASE_URL'].rstrip('/')}/browse/"
+    )
+    for gh_item in gh.list_sub_issues(parent_issue["number"]):
+        body_lines = (gh_item.get("body") or "").splitlines()
+        footer = body_lines[-1] if body_lines else ""
+        if not footer.startswith(footer_prefix):
+            continue
+
+        jira_key = footer[len(footer_prefix) :]
+        if not JIRA_KEY_RE.fullmatch(jira_key) or jira_key in jira_issue_keys:
+            continue
+        if not jira.issue_is_missing(jira_key):
+            continue
+
+        node_id = gh_item.get("node_id")
+        if node_id is not None and gh.delete_issue(node_id):
+            print(
+                f"Deleted GitHub #{gh_item['number']}: Jira issue {jira_key} is missing"
+            )
+
+
+def ensure_github_issue(
+    issue: dict,
+) -> tuple[int | None, dict | None, str]:
+    key = issue["key"]
+    description = jira.adf_to_text(issue["fields"].get("description"))
+    number = parse_gh_number(description)
+    had_tracking_link = number is not None
+    gh_item = gh.get_issue(number) if number is not None else None
+
+    if number is not None and gh_item is None:
+        print(f"{key}: linked GitHub #{number} not found, recreating")
+        description = remove_sync_footer(description)
+        number = None
+
+    if number is not None:
+        gh_url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{number}"
+        updated_description = ensure_jira_description_postfix(description, gh_url)
+        if updated_description is not None:
+            jira.update_description(key, updated_description)
+            description = updated_description
+
+    expected_body = build_synced_body(key, description)
+    if number is None:
+        number = create_and_link_gh_issue(issue["fields"]["summary"], expected_body)
+        if number is None:
+            print(f"{key}: failed to create a linked GitHub issue, skipping")
+            return None, None, expected_body
+
+        gh_url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{number}"
+        if had_tracking_link:
+            updated_description = build_jira_description(gh_url, description)
+        else:
+            updated_description = ensure_jira_description_postfix(description, gh_url)
+        if updated_description is not None:
+            jira.update_description(key, updated_description)
+        print(f"{key}: created and linked GitHub #{number}")
+
+    if gh_item is None:
+        gh_item = gh.get_issue(number)
+    return number, gh_item, expected_body
+
+
+def sync_github_issue(
+    issue: dict,
+    parent_issue: dict | None,
+    number: int,
+    gh_item: dict,
+    expected_body: str,
+) -> None:
+    key = issue["key"]
+    link_to_epic(parent_issue, gh_item)
+
+    if gh_item.get("body") != expected_body:
+        gh.update_issue(number, body=expected_body)
+        print(f"{key}: updated GitHub #{number} description from Jira")
+
+    sync_comments(key, number)
+    sync_issue_state(issue, number, gh_item)
+
+
+def sync_issue_state(issue: dict, number: int, gh_item: dict) -> None:
+    key = issue["key"]
+    status_category = issue["fields"]["status"]["statusCategory"]["key"]
+    jira_done = status_category == "done"
+    gh_open = gh_item["state"] == "open"
+
+    if jira_done and gh_open:
+        gh.add_comment(number, f"Closing automatically: {key} was marked Done in Jira.")
+        gh.set_state(number, "closed")
+        print(f"Closed #{number} ({key} is Done)")
+    elif not jira_done and not gh_open:
+        gh.add_comment(
+            number, f"Reopening automatically: {key} is no longer Done in Jira."
+        )
+        gh.set_state(number, "open")
+        print(f"Reopened #{number} ({key} is not Done)")
+    else:
+        print(
+            f"{key}: #{number} already in sync (jira_done={jira_done}, gh_open={gh_open})"
+        )
+
+
+def sync_jira_issue(issue: dict, parent_issue: dict | None) -> None:
+    number, gh_item, expected_body = ensure_github_issue(issue)
+    if number is None:
+        return
+    if gh_item is None:
+        print(f"{issue['key']}: linked GitHub #{number} not found, skipping")
+        return
+
+    sync_github_issue(issue, parent_issue, number, gh_item, expected_body)
+
+
 def sync_all() -> None:
     issues = jira.search(JIRA_JQL, fields=["status", "summary", "description"])
     print(f"Found {len(issues)} Jira issue(s) under {JIRA_EPIC_KEY}")
     parent_issue = ensure_epic_issue()
 
     for issue in issues:
-        key = issue["key"]
-        description = jira.adf_to_text(issue["fields"].get("description"))
-        number = parse_gh_number(description)
-        had_tracking_link = number is not None
-        gh_item = gh.get_issue(number) if number is not None else None
+        sync_jira_issue(issue, parent_issue)
 
-        if number is not None and gh_item is None:
-            print(f"{key}: linked GitHub #{number} not found, recreating")
-            description = remove_sync_footer(description)
-            number = None
-
-        if number is not None:
-            gh_url = (
-                f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{number}"
-            )
-            updated_description = ensure_jira_description_postfix(description, gh_url)
-            if updated_description is not None:
-                jira.update_description(key, updated_description)
-                description = updated_description
-
-        expected_body = build_synced_body(key, description)
-
-        if number is None:
-            number = create_and_link_gh_issue(issue["fields"]["summary"], expected_body)
-            if number is None:
-                print(f"{key}: failed to create a linked GitHub issue, skipping")
-                continue
-            gh_url = (
-                f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/issues/{number}"
-            )
-            if had_tracking_link:
-                updated_description = build_jira_description(gh_url, description)
-            else:
-                updated_description = ensure_jira_description_postfix(
-                    description, gh_url
-                )
-            if updated_description is not None:
-                jira.update_description(key, updated_description)
-            print(f"{key}: created and linked GitHub #{number}")
-
-        status_category = issue["fields"]["status"]["statusCategory"]["key"]
-        jira_done = status_category == "done"
-
-        if gh_item is None:
-            gh_item = gh.get_issue(number)
-        if gh_item is None:
-            print(f"{key}: linked GitHub #{number} not found, skipping")
-            continue
-
-        link_to_epic(parent_issue, gh_item)
-
-        if gh_item.get("body") != expected_body:
-            gh.update_issue(number, body=expected_body)
-            print(f"{key}: updated GitHub #{number} description from Jira")
-
-        sync_comments(key, number)
-
-        gh_open = gh_item["state"] == "open"
-
-        if jira_done and gh_open:
-            gh.add_comment(
-                number, f"Closing automatically: {key} was marked Done in Jira."
-            )
-            gh.set_state(number, "closed")
-            print(f"Closed #{number} ({key} is Done)")
-        elif not jira_done and not gh_open:
-            gh.add_comment(
-                number, f"Reopening automatically: {key} is no longer Done in Jira."
-            )
-            gh.set_state(number, "open")
-            print(f"Reopened #{number} ({key} is not Done)")
-        else:
-            print(
-                f"{key}: #{number} already in sync (jira_done={jira_done}, gh_open={gh_open})"
-            )
+    delete_missing_jira_issues(parent_issue, {issue["key"] for issue in issues})
