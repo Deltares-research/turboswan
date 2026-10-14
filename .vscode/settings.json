@@ -1,0 +1,14 @@
+{
+    "python.analysis.extraPaths": [
+        ".teamcity/jira_sync/src"
+    ],
+    "python.testing.pytestArgs": [
+        ".teamcity/jira_sync/tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    }
+}

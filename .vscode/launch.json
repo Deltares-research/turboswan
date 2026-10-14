@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "jira_sync: sync",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "jira_sync.epic_sync",
+            "envFile": "${workspaceFolder}/.teamcity/jira_sync/.env",
+            "justMyCode": true
+        }
+    ]
+}
