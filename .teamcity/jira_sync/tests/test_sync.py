@@ -31,11 +31,13 @@ def test_epic_key_is_required(monkeypatch):
 
 def test_main_reconciles_jira_to_github():
     # Arrange
-    with patch(
-        "jira_sync.epic_sync.jira_client.get_issue", return_value={"key": "MLPS-118"}
-    ) as get_issue, patch(
-        "jira_sync.epic_sync.jira_to_github.sync_all"
-    ) as sync_jira_to_github:
+    with (
+        patch(
+            "jira_sync.epic_sync.jira_client.get_issue",
+            return_value={"key": "MLPS-118"},
+        ) as get_issue,
+        patch("jira_sync.epic_sync.jira_to_github.sync_all") as sync_jira_to_github,
+    ):
         # Act
         epic_sync.main()
 
@@ -46,12 +48,13 @@ def test_main_reconciles_jira_to_github():
 
 def test_main_aborts_when_epic_is_inaccessible():
     # Arrange
-    with patch("jira_sync.epic_sync.jira_client.get_issue", return_value=None), patch(
-        "jira_sync.epic_sync.jira_to_github.sync_all"
-    ) as sync_jira_to_github:
-        # Act and assert
-        with pytest.raises(RuntimeError, match="Cannot access Jira epic MLPS-118"):
-            epic_sync.main()
+    with (
+        patch("jira_sync.epic_sync.jira_client.get_issue", return_value=None),
+        patch("jira_sync.epic_sync.jira_to_github.sync_all") as sync_jira_to_github,
+        pytest.raises(RuntimeError, match="Cannot access Jira epic MLPS-118"),
+    ):
+        # Act
+        epic_sync.main()
 
     # Assert
     sync_jira_to_github.assert_not_called()

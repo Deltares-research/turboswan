@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-import jira_sync.jira_client as jira_client
+from jira_sync import jira_client
 
 
 def _mock_response(ok=True, status_code=200, json_data=None, text=""):

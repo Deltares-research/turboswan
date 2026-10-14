@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import os
 
-import jira_sync.jira_client as jira_client
-import jira_sync.jira_to_github as jira_to_github
+from jira_sync import jira_client, jira_to_github
 
 
 def main() -> None:

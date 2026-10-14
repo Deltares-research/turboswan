@@ -37,10 +37,14 @@ def skip_epic_parent_sync(request):
 
 def test_jira_to_github_sync_comments_mirrors_new_jira_comment():
     # Arrange
-    with patch("jira_sync.jira_to_github.gh.list_comments", return_value=[]), patch(
-        "jira_sync.jira_to_github.jira.list_comments",
-        return_value=[make_jira_comment("10", "hello there", author="Alice")],
-    ), patch("jira_sync.jira_to_github.gh.add_comment") as add_comment:
+    with (
+        patch("jira_sync.jira_to_github.gh.list_comments", return_value=[]),
+        patch(
+            "jira_sync.jira_to_github.jira.list_comments",
+            return_value=[make_jira_comment("10", "hello there", author="Alice")],
+        ),
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+    ):
         # Act
         module.sync_comments("MLPS-1", 5)
 
@@ -60,12 +64,14 @@ def test_jira_to_github_sync_comments_skips_already_mirrored_comment():
         }
     ]
 
-    with patch(
-        "jira_sync.jira_to_github.gh.list_comments", return_value=gh_comments
-    ), patch(
-        "jira_sync.jira_to_github.jira.list_comments",
-        return_value=[make_jira_comment("10", "hi", author="Alice")],
-    ), patch("jira_sync.jira_to_github.gh.add_comment") as add_comment:
+    with (
+        patch("jira_sync.jira_to_github.gh.list_comments", return_value=gh_comments),
+        patch(
+            "jira_sync.jira_to_github.jira.list_comments",
+            return_value=[make_jira_comment("10", "hi", author="Alice")],
+        ),
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+    ):
         # Act
         module.sync_comments("MLPS-1", 5)
 
@@ -75,12 +81,18 @@ def test_jira_to_github_sync_comments_skips_already_mirrored_comment():
 
 def test_jira_to_github_sync_comments_skips_comments_that_originated_on_github():
     # Arrange
-    with patch("jira_sync.jira_to_github.gh.list_comments", return_value=[]), patch(
-        "jira_sync.jira_to_github.jira.list_comments",
-        return_value=[
-            make_jira_comment("11", "Synced from GitHub comment by bob:\n\noriginal")
-        ],
-    ), patch("jira_sync.jira_to_github.gh.add_comment") as add_comment:
+    with (
+        patch("jira_sync.jira_to_github.gh.list_comments", return_value=[]),
+        patch(
+            "jira_sync.jira_to_github.jira.list_comments",
+            return_value=[
+                make_jira_comment(
+                    "11", "Synced from GitHub comment by bob:\n\noriginal"
+                )
+            ],
+        ),
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+    ):
         # Act
         module.sync_comments("MLPS-1", 5)
 
@@ -92,14 +104,17 @@ def test_jira_to_github_closes_open_gh_issue_when_jira_done():
     # Arrange
     issues = [make_issue("MLPS-1", tracked(5), "done")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "open", "body": ""},
-    ), patch("jira_sync.jira_to_github.gh.update_issue"), patch(
-        "jira_sync.jira_to_github.sync_comments"
-    ), patch("jira_sync.jira_to_github.gh.add_comment") as add_comment, patch(
-        "jira_sync.jira_to_github.gh.set_state"
-    ) as set_state:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "open", "body": ""},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments"),
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+        patch("jira_sync.jira_to_github.gh.set_state") as set_state,
+    ):
         # Act
         module.sync_all()
 
@@ -112,14 +127,17 @@ def test_jira_to_github_reopens_closed_gh_issue_when_jira_not_done():
     # Arrange
     issues = [make_issue("MLPS-2", tracked(6), "indeterminate")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "closed", "body": ""},
-    ), patch("jira_sync.jira_to_github.gh.update_issue"), patch(
-        "jira_sync.jira_to_github.sync_comments"
-    ), patch("jira_sync.jira_to_github.gh.add_comment") as add_comment, patch(
-        "jira_sync.jira_to_github.gh.set_state"
-    ) as set_state:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "closed", "body": ""},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments"),
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+        patch("jira_sync.jira_to_github.gh.set_state") as set_state,
+    ):
         # Act
         module.sync_all()
 
@@ -132,12 +150,16 @@ def test_jira_to_github_no_change_when_states_already_match():
     # Arrange
     issues = [make_issue("MLPS-3", tracked(8), "done")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "closed", "body": ""},
-    ), patch("jira_sync.jira_to_github.gh.update_issue"), patch(
-        "jira_sync.jira_to_github.sync_comments"
-    ), patch("jira_sync.jira_to_github.gh.set_state") as set_state:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "closed", "body": ""},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments"),
+        patch("jira_sync.jira_to_github.gh.set_state") as set_state,
+    ):
         # Act
         module.sync_all()
 
@@ -149,12 +171,15 @@ def test_jira_to_github_sync_all_syncs_comments_for_each_linked_issue():
     # Arrange
     issues = [make_issue("MLPS-9", tracked(14), "done")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "closed", "body": ""},
-    ), patch("jira_sync.jira_to_github.gh.update_issue"), patch(
-        "jira_sync.jira_to_github.sync_comments"
-    ) as sync_comments:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "closed", "body": ""},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments") as sync_comments,
+    ):
         # Act
         module.sync_all()
 
@@ -166,9 +191,13 @@ def test_jira_to_github_creates_issue_when_description_has_no_gh_link():
     # Arrange
     issues = [make_issue("MLPS-4", "Unrelated description", "done")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.create_issue", return_value=None
-    ) as create_issue, patch("jira_sync.jira_to_github.gh.get_issue") as get_issue:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.create_issue", return_value=None
+        ) as create_issue,
+        patch("jira_sync.jira_to_github.gh.get_issue") as get_issue,
+    ):
         # Act
         module.sync_all()
 
@@ -181,16 +210,20 @@ def test_jira_to_github_creates_and_links_gh_issue_when_unlinked():
     # Arrange
     issues = [make_issue("MLPS-6", "test description", "new", summary="Summary")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.create_issue", return_value=11
-    ) as create_issue, patch(
-        "jira_sync.jira_to_github.jira.update_description"
-    ) as update_description, patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "open", "body": None},
-    ), patch("jira_sync.jira_to_github.gh.update_issue") as update_issue, patch(
-        "jira_sync.jira_to_github.gh.add_comment"
-    ) as add_comment, patch("jira_sync.jira_to_github.sync_comments"):
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.create_issue", return_value=11
+        ) as create_issue,
+        patch("jira_sync.jira_to_github.jira.update_description") as update_description,
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "open", "body": None},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue") as update_issue,
+        patch("jira_sync.jira_to_github.gh.add_comment") as add_comment,
+        patch("jira_sync.jira_to_github.sync_comments"),
+    ):
         # Act
         module.sync_all()
 
@@ -216,15 +249,18 @@ def test_jira_to_github_recreates_and_relinks_missing_gh_issue():
     # Arrange
     issues = [make_issue("MLPS-6", tracked(9, "test description"), "new")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        side_effect=[None, {"state": "open", "body": None}],
-    ), patch(
-        "jira_sync.jira_to_github.gh.create_issue", return_value=11
-    ) as create_issue, patch(
-        "jira_sync.jira_to_github.jira.update_description"
-    ) as update_description, patch("jira_sync.jira_to_github.gh.update_issue"), patch(
-        "jira_sync.jira_to_github.sync_comments"
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            side_effect=[None, {"state": "open", "body": None}],
+        ),
+        patch(
+            "jira_sync.jira_to_github.gh.create_issue", return_value=11
+        ) as create_issue,
+        patch("jira_sync.jira_to_github.jira.update_description") as update_description,
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments"),
     ):
         # Act
         module.sync_all()
@@ -246,19 +282,20 @@ def test_jira_to_github_creates_epic_parent_and_links_child_issue():
     parent = {"number": 99, "id": 990, "title": "Epic summary", "body": ""}
     child = {"number": 5, "id": 50, "state": "open", "body": ""}
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.jira.get_issue", return_value=epic
-    ), patch("jira_sync.jira_to_github.gh.search_issues", return_value=[]), patch(
-        "jira_sync.jira_to_github.gh.create_issue", return_value=99
-    ) as create_issue, patch(
-        "jira_sync.jira_to_github.jira.update_description"
-    ) as update_description, patch(
-        "jira_sync.jira_to_github.gh.get_issue", side_effect=[parent, child]
-    ), patch(
-        "jira_sync.jira_to_github.gh.list_sub_issue_ids", return_value=set()
-    ), patch("jira_sync.jira_to_github.gh.add_sub_issue") as add_sub_issue, patch(
-        "jira_sync.jira_to_github.gh.update_issue"
-    ), patch("jira_sync.jira_to_github.sync_comments"):
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch("jira_sync.jira_to_github.jira.get_issue", return_value=epic),
+        patch("jira_sync.jira_to_github.gh.search_issues", return_value=[]),
+        patch(
+            "jira_sync.jira_to_github.gh.create_issue", return_value=99
+        ) as create_issue,
+        patch("jira_sync.jira_to_github.jira.update_description") as update_description,
+        patch("jira_sync.jira_to_github.gh.get_issue", side_effect=[parent, child]),
+        patch("jira_sync.jira_to_github.gh.list_sub_issue_ids", return_value=set()),
+        patch("jira_sync.jira_to_github.gh.add_sub_issue") as add_sub_issue,
+        patch("jira_sync.jira_to_github.gh.update_issue"),
+        patch("jira_sync.jira_to_github.sync_comments"),
+    ):
         # Act
         module.sync_all()
 
@@ -280,11 +317,14 @@ def test_jira_to_github_updates_gh_issue_body_when_out_of_sync():
     # Arrange
     issues = [make_issue("MLPS-7", tracked(12, "updated description"), "new")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={"state": "open", "body": "stale body"},
-    ), patch("jira_sync.jira_to_github.gh.update_issue") as update_issue, patch(
-        "jira_sync.jira_to_github.sync_comments"
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={"state": "open", "body": "stale body"},
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue") as update_issue,
+        patch("jira_sync.jira_to_github.sync_comments"),
     ):
         # Act
         module.sync_all()
@@ -300,14 +340,17 @@ def test_jira_to_github_does_not_update_gh_issue_body_when_already_in_sync():
     expected_url_base = "https://example.atlassian.net/browse/MLPS-8"
     issues = [make_issue("MLPS-8", tracked(13, "same"), "new")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue",
-        return_value={
-            "state": "open",
-            "body": f"same\n\n----------------------------------------\nAutomatically synced at: {expected_url_base}",
-        },
-    ), patch("jira_sync.jira_to_github.gh.update_issue") as update_issue, patch(
-        "jira_sync.jira_to_github.sync_comments"
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch(
+            "jira_sync.jira_to_github.gh.get_issue",
+            return_value={
+                "state": "open",
+                "body": f"same\n\n----------------------------------------\nAutomatically synced at: {expected_url_base}",
+            },
+        ),
+        patch("jira_sync.jira_to_github.gh.update_issue") as update_issue,
+        patch("jira_sync.jira_to_github.sync_comments"),
     ):
         # Act
         module.sync_all()
@@ -320,9 +363,11 @@ def test_skips_when_gh_issue_missing():
     # Arrange
     issues = [make_issue("MLPS-5", tracked(9), "done")]
 
-    with patch("jira_sync.jira_to_github.jira.search", return_value=issues), patch(
-        "jira_sync.jira_to_github.gh.get_issue", return_value=None
-    ), patch("jira_sync.jira_to_github.gh.set_state") as set_state:
+    with (
+        patch("jira_sync.jira_to_github.jira.search", return_value=issues),
+        patch("jira_sync.jira_to_github.gh.get_issue", return_value=None),
+        patch("jira_sync.jira_to_github.gh.set_state") as set_state,
+    ):
         # Act
         module.sync_all()
 
