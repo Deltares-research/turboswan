@@ -22,6 +22,20 @@ def tracked(number, extra=""):
     return text
 
 
+def test_build_synced_body_appends_jira_postfix():
+    # Arrange
+    description = "Jira description"
+
+    # Act
+    body = module.build_synced_body("MLPS-127", description)
+
+    # Assert
+    assert body == (
+        "Jira description\n\n----------------------------------------\n"
+        "Automatically synced at: https://example.atlassian.net/browse/MLPS-127"
+    )
+
+
 def make_jira_comment(comment_id, text, author="Jira user"):
     return {"id": comment_id, "author": {"displayName": author}, "body": text}
 
