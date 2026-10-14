@@ -38,6 +38,52 @@ def test_auth_reads_env(monkeypatch):
     assert auth == ("me@example.com", "secret")
 
 
+@patch("jira_sync.jira_client.time.sleep")
+@patch("jira_sync.jira_client.requests.request")
+def test_get_request_retries_connection_error(mock_request, mock_sleep):
+    # Arrange
+    response = _mock_response(json_data={"key": "PROJ-1"})
+    mock_request.side_effect = [requests.ConnectionError("connection reset"), response]
+
+    # Act
+    result = jira_client.get_issue("PROJ-1")
+
+    # Assert
+    assert result == {"key": "PROJ-1"}
+    assert mock_request.call_count == 2
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("jira_sync.jira_client.time.sleep")
+@patch("jira_sync.jira_client.requests.request")
+def test_get_request_raises_after_retry_limit(mock_request, mock_sleep):
+    # Arrange
+    mock_request.side_effect = requests.ConnectionError("connection reset")
+
+    # Act and assert
+    with pytest.raises(requests.ConnectionError, match="connection reset"):
+        jira_client.get_issue("PROJ-1")
+
+    # Assert
+    assert mock_request.call_count == jira_client.GET_ATTEMPTS
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [1, 1]
+
+
+@patch("jira_sync.jira_client.time.sleep")
+@patch("jira_sync.jira_client.requests.request")
+def test_write_request_is_not_retried(mock_request, mock_sleep):
+    # Arrange
+    mock_request.side_effect = requests.ConnectionError("connection reset")
+
+    # Act and assert
+    with pytest.raises(requests.ConnectionError, match="connection reset"):
+        jira_client.update_description("PROJ-1", "updated")
+
+    # Assert
+    mock_request.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
 def test_text_to_adf_wraps_plain_text():
     # Arrange
     text = "hello"

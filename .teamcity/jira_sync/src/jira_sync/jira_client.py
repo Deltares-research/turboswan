@@ -5,11 +5,14 @@ from __future__ import annotations
 import os
 import re
 import sys
+import time
 from typing import Any
 
 import requests
 
 URL_RE = re.compile(r"https?://\S+")
+GET_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 1
 
 
 def _base_url() -> str:
@@ -26,7 +29,20 @@ def _url(path: str) -> str:
 
 def _request(method: str, path: str, **kwargs: Any) -> requests.Response:
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    resp = requests.request(method, _url(path), auth=_auth(), headers=headers, **kwargs)
+    for attempt in range(GET_ATTEMPTS):
+        try:
+            resp = requests.request(
+                method, _url(path), auth=_auth(), headers=headers, **kwargs
+            )
+            break
+        except (requests.ConnectionError, requests.Timeout):
+            if method.upper() != "GET" or attempt == GET_ATTEMPTS - 1:
+                raise
+            print(
+                f"Jira API GET {path} connection failed; retrying in {RETRY_DELAY_SECONDS}s",
+                file=sys.stderr,
+            )
+            time.sleep(RETRY_DELAY_SECONDS)
     if not resp.ok:
         print(
             f"Jira API {method} {path} failed: {resp.status_code} {resp.text}",
