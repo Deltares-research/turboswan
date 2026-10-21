@@ -5,7 +5,7 @@ description = "TurboSWAN training, experiment tracking, and sweep workflows"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    #"deltares-ai-platform-sdk", # needs to be on nexus, private package
+    "deltares-ai-platform-sdk",
     "keras-tuner>=1.4.8",
     "matplotlib>=3.11.1",
     "mlflow==3.15.1",
@@ -22,8 +22,19 @@ dependencies = [
     "ipykernel",
 ]
 
+[project.optional-dependencies]
+gpu = [
+    "tensorflow[and-cuda]>=2.21.0; sys_platform == 'linux'",
+]
+
+[tool.uv]
+environments = [
+    "python_version == '3.12' and (sys_platform != 'win32' or platform_machine != 'ARM64')",
+]
+
 [tool.uv.sources]
-deltares-ai-platform-sdk = { workspace = true }
+# needs to be on nexus, private package; local copy for now
+deltares-ai-platform-sdk = { path = "deltares_ai_platform_sdk", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]
