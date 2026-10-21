@@ -1,0 +1,107 @@
+# Local notebook demo; the error map uses one validation example, not an
+# independent scientific evaluation. Training settings match demo.toml.
+
+[data]
+# a folder that already contains the data
+source = "~/turboswan/data/demo"
+train_subdir = "train_data"
+val_subdir = "val_data"
+min_max_file = "min_max_files/min-max-values-all.nc"
+valid_mask_file = "valid-mask.npy"
+max_tfrecords = 2
+input_variables = ["xwnd", "ywnd", "wl"]
+output_variables = ["hs"]
+boundary_variables = ["hs_bnd", "tp_bnd", "theta0_bnd"]
+indices = [3]
+shuffle_buffer_size = 8
+seed = 0
+
+[augmentation]
+flip_horizontal = false
+flip_vertical = false
+rotate_180 = false
+
+[model]
+widths = [4, 8, 8, 8, 8, 8]
+block_depth = 1
+kernel_size = 5
+dropout = true
+
+[training]
+learning_rate = 1e-4
+lr_decay_steps = 10000
+lr_decay_rate = 0.9
+n_epochs = 3
+batch_size = 2
+steps_per_epoch = 3
+validation_steps = 1
+steps_per_execution = 1
+verbose = 2
+
+[run]
+# local = MLflow records stay on this machine (~/turboswan/mlflow unless
+# mlflow.local_tracking_dir is set); dnai = platform MLflow
+mode = "local"
+model_dir = "~/turboswan/trained_models"
+model_version = "turbo_swan_demo"
+tensorboard = false
+histogram_freq = 1
+checkpoint = false
+save_final = false
+
+[mlflow]
+experiment_name = "turboswan/demo-training" # the study: groups related runs
+model_name = "turboswan-hs-demo"
+description = "Small demonstration using the TurboSWAN demo recipe." # why this run; run_name is optional, MLflow names the run if omitted
+
+# Labels describe logged values; they do not change training or sweep selection.
+# Unlisted metrics keep their names; unlisted parameters remain in config.json.
+[mlflow.metric_labels]
+loss = "Training masked MSE - normalised wave height"
+val_loss = "Validation masked MSE - normalised wave height"
+
+[mlflow.parameter_labels]
+"run.mode" = "Run - mode"
+"run.model_version" = "Run - model version"
+"data.source" = "Data - source"
+"data.resolved_train_dir" = "Data - training split"
+"data.resolved_val_dir" = "Data - validation split"
+"data.max_tfrecords" = "Data - maximum TFRecord shards per split"
+"data.input_variables" = "Data - raster input variables"
+"data.output_variables" = "Data - predicted variables"
+"data.boundary_variables" = "Data - boundary forcing variables"
+"data.indices" = "Data - temporal indices"
+"data.shuffle_buffer_size" = "Data - shuffle buffer size"
+"data.seed" = "Data - random seed"
+"augmentation.flip_horizontal" = "Augmentation - horizontal flip"
+"augmentation.flip_vertical" = "Augmentation - vertical flip"
+"augmentation.rotate_180" = "Augmentation - 180-degree rotation"
+"model.widths" = "Model - feature channels per U-Net stage from shallow to bottleneck"
+"model.block_depth" = "Model - residual blocks per stage"
+"model.kernel_size" = "Model - convolution kernel size in pixels"
+"model.dropout" = "Model - dropout enabled"
+"training.batch_size" = "Training - samples per optimisation step"
+"training.n_epochs" = "Training - epochs"
+"training.steps_per_epoch" = "Training - mini-batches per epoch"
+"training.validation_steps" = "Validation - mini-batches per epoch"
+"training.learning_rate" = "Training - initial learning rate"
+"training.lr_decay_steps" = "Training - learning-rate decay steps"
+"training.lr_decay_rate" = "Training - learning-rate decay factor"
+"comparison.name" = "Comparison {index} - name"
+"comparison.subdir" = "Comparison {index} - data folder"
+"comparison.sample_file" = "Comparison {index} - source file"
+"comparison.reference" = "Comparison {index} - reference"
+
+[mlflow.variable_descriptions]
+xwnd = "east-west wind component"
+ywnd = "north-south wind component"
+wl = "water level"
+hs = "significant wave height"
+hs_bnd = "boundary significant wave height"
+tp_bnd = "boundary peak wave period"
+theta0_bnd = "boundary wave direction"
+
+[[comparisons]]
+name = "Demo validation example (not independent evaluation)"
+subdir = "val_data" # folder inside data.source
+plots = ["Error map"]

@@ -1,169 +1,136 @@
-# TurboSwan
+# TurboSWAN: Researcher Guide
 
-TurboSwan contains the code used to train TensorFlow models that emulate SWAN wave-model output from gridded forcing data and boundary conditions. The repository is centered on the training pipeline in `train-network/`, with supporting scripts for data preparation and notebooks for analysis and validation.
+TurboSWAN trains TensorFlow models that emulate SWAN wave-model output from gridded forcing data and boundary conditions. It predicts fields such as significant wave height (`hs`) on a fixed `(481, 421)` grid.
 
-## What This Repository Does
+The training data is prepared before this project runs. A recipe selects TFRecord training and validation shards, normalization ranges from NetCDF, and a spatial validity mask used by the loss.
 
-The project trains convolutional neural networks on TFRecord datasets derived from SWAN simulations. In the current setup, the main model predicts wave height (`hs`) on a `(481, 421)` grid from:
+This guide covers running experiments with the integrated project in
+`ai-platform-mlops`. For code structure, tests, linting, type checking, and
+coverage, see [README-developers.md](README-developers.md).
 
-- gridded input fields for wind and water level
-- boundary-condition for wave height, wave period and wave angle sampled along the model boundary
-- normalization metadata stored in NetCDF files
-- a validity mask to exclude land mass, used inside the loss function
+## Run a Tracked Experiment
 
-The codebase assumes an offline workflow where TFRecords have already been generated before model training starts.
+For a local demonstration, follow the
+[getting started guide](https://potential-doodle-8gm7w41.pages.github.io/turboswan-mlx/demo-getting-started/)
+(MLX documentation; access requires the Deltares-research organization). It
+covers getting this branch, installing the environment, choosing the notebook
+kernel, and copying the demo data to `~/turboswan/data/demo`.
 
-## Installation
+Then open `notebooks/demo_tracking.ipynb` and run it top to bottom with its working directory set to `projects/turboswan/notebooks`. This standalone local demo introduces the research workflow without requiring a Data & AI platform account. It uses `configs/demo_mlflow_local.toml`, which keeps the training settings of `configs/demo.toml` and requests an error map from one demo validation example. A local record is stored under `~/turboswan/mlflow/`.
 
-The project is defined with `pyproject.toml` and targets Python 3.12+.
+The notebook logs the recipe, input manifests, normalization and mask inputs, learning curve, model signature, and fitted Keras model to MLflow. It also records both the configured and effective runtime data locations so local runs remain reproducible.
+
+After training, the fitted model and input manifests are saved before the
+comparison and preprocessing reports are generated. If report generation
+fails, the error still propagates and the run is marked failed, but the
+already-logged model remains available in MLflow.
+
+### Why Save TOML and JSON?
+
+`metadata/recipe.toml` preserves the original recipe as loaded, including comments
+and formatting. `metadata/config.json` records the effective settings, including
+defaults and notebook or sweep overrides, with the path formatting described
+below. Keep the TOML to understand the starting experiment and the JSON to see
+what was actually used. Sweep trials share the base recipe but have their own
+effective JSON. Configurations built directly in Python without a source recipe
+log JSON only; an original TOML is not invented.
+
+### Edit a Recipe
+
+Copy `configs/demo.toml` and edit the copy. What every setting means, how a sweep
+file refers to a recipe, the readable MLflow labels, and the optional comparison
+plots are explained in the
+[TOML configuration page](https://potential-doodle-8gm7w41.pages.github.io/turboswan-mlx/toml-configuration/)
+(MLX documentation; access requires the Deltares-research organization).
+Labels and comparisons only change what is displayed or plotted, never the
+training calculations or which sweep trial is selected.
+
+### Recorded Data Locations
+
+Local home-directory paths are recorded with `~`, not an expanded username. For
+example, Parameters shows `Data - source = ~/turboswan/data/demo`,
+`Data - training split = train_data`, and `Data - validation split = val_data`.
+Each comparison names a folder inside that source (`subdir`; `.` means the
+source itself), with the selected shard recorded by filename. Comparisons are
+recorded individually, not also as a JSON-valued parameter.
+
+In `dnai` mode the data folder is likewise recorded as a shortened local path. Dataset manifests and their digests
+use shard filenames, so moving the same named shards does not change that digest;
+this is a filename-manifest digest, not a checksum of file contents.
+
+`metadata/train-tfrecords.json` and `metadata/val-tfrecords.json` are native
+MLflow tables, logged with `mlflow.log_table`. Their `tfrecord_file` column lists
+the sorted shard filenames selected after applying `max_tfrecords`, and
+`file_path` records each file's location, abbreviating home-directory paths
+with `~`. The
+corresponding dataset input records hold each split's folder and filename digest.
+Together these identify the selected files without copying TFRecord contents.
+The tables can be read back with `mlflow.load_table`.
+
+In the MLflow UI, open **Artifacts -> metadata -> train-tfrecords.json** or
+**val-tfrecords.json** to view these tables. The **Datasets** panel shows each
+split's folder, digest and table schema, not the individual file references.
+Its row count is the number of selected shards, not the number of training
+examples. A shard is one TFRecord file containing part of the dataset.
+
+We keep one dataset input per split rather than one per shard to avoid a long
+dataset list for larger runs. The native JSON tables retain the exact selected
+file references separately from the recipe and effective configuration.
+They do not preserve data versions: changing a file's contents without renaming
+it does not change the filename digest, and the original data must still be
+retained outside MLflow.
+
+The complete `metadata/config.json` snapshot also abbreviates home-directory
+path fields, while retaining defaults, labels, and overrides.
+Explicit absolute paths outside the user's home (for example `/tmp` or a shared
+mount) remain explicit; they cannot safely be presented as home-relative paths.
+Python still opens files using the original runtime paths. MLflow's storage URIs
+are unchanged. No files are moved, and `~` does not make data available on another
+machine: that user still needs the corresponding files in their data root.
+
+## Recipes and Direct Training
+
+Recipes in `configs/` define the data layout, augmentation, model configuration, fitting schedule, and optional local outputs. Copy `configs/demo.toml` before changing a research question.
+
+To run one recipe without MLflow tracking:
 
 ```bash
-uv sync
+.venv/bin/python -m turboswan.training --config projects/turboswan/configs/demo.toml
 ```
 
-Use `uv run` to execute project commands inside the managed environment.
-
-## Main Training Workflow
-
-The primary entry point is `train-network/train_network.py`.
-
-At a high level, the training flow is:
-
-1. Define the training configuration, including TFRecord locations, model version, variables, batch size, and network width/depth.
-2. Load min/max normalization values from a NetCDF dataset.
-3. Build TensorFlow datasets from TFRecord files for training and validation.
-4. Construct the TurboSwan model.
-5. Compile the model with a masked mean-squared-error loss.
-6. Train with TensorBoard logging and model checkpoints.
-7. Save the final trained model to `trained_models/<model_version>/`.
-
-Before running training, create a local config file from the example and update it for your environment.
+To run the same recipe as one MLflow run, using its `[mlflow]` section:
 
 ```bash
-cp train-network/config.example.toml train-network/config.toml
+.venv/bin/python -m turboswan.training_mlflow --config projects/turboswan/configs/demo.toml
 ```
 
-The config file is used to provide the TFRecord root directory and the main training settings:
-
-- `model_version`
-- `tfrecord_dir`
-- `learning_rate`
-- `n_epochs`
-- `batch_size`
-- `seed`
-
-Example:
+To run a sweep over a recipe, recorded as one MLflow parent run with a child run per trial:
 
 ```bash
-uv run python train-network/train_network.py
+.venv/bin/python -m turboswan.training_sweep --sweep-config projects/turboswan/configs/sweeps/demo.toml --executor local
 ```
 
-To use a different config file:
+Use `--executor ray` to run trials on the active Ray cluster.
 
-```bash
-uv run python train-network/train_network.py --config path/to/config.toml
+The same sweep is available interactively in `notebooks/demo_sweep.ipynb` (kernel **Python (turboswan)**, working directory `projects/turboswan/notebooks`). It starts a local Ray instance on your machine and runs three trials of the demo data; this takes a couple of minutes on a laptop-class CPU. It needs the same demo data in `~/turboswan/data/demo` and records to `~/turboswan/mlflow/`.
+
+The standard data layout is:
+
+```text
+<data.source>/
+	train_data/
+	val_data/
+	min_max_files/min-max-values-all.nc
+	valid-mask.npy
 ```
 
-## The `train-network/` Folder
+`data.source` is always a folder that already contains the data; nothing is downloaded, and training raises `FileNotFoundError` if the folder does not exist. One setting, `[run] mode`, decides where MLflow records:
 
-This folder contains the core implementation of the learning pipeline.
+| `[run] mode` | MLflow records to |
+|---|---|
+| `"local"` (default) | a local folder (`mlflow.local_tracking_dir`) |
+| `"dnai"` | the Data & AI platform's MLflow server |
 
-### `train_network.py`
+`mlflow.local_tracking_dir` is rejected in dnai mode with an error.
 
-This is the executable training script. It wires together dataset loading, normalization metadata, multi-GPU TensorFlow strategy setup, model compilation, checkpointing, TensorBoard logging, and final model export.
-
-Notable characteristics of the current implementation:
-
-- it is organized around TFRecord directories such as `train_data` and `val_data`
-- it reads the TFRecord root directory and core hyperparameters from a TOML config file
-- it loads a `valid-mask.npy` file and appends that mask to the training targets
-- it copies the contents of `train-network/` into the output model directory for experiment traceability
-- it currently uses `TurboSwanModel.py`, which uses both raster inputs and boundary inputs
-
-### `create_datasets.py`
-
-This module is responsible for turning TFRecord files into batched `tf.data.Dataset` pipelines.
-
-Its responsibilities include:
-
-- discovering TFRecord shards in a directory
-- parsing serialized tensors from each example
-- normalizing variables with min/max metadata
-- reshaping raster channels and boundary-condition inputs
-- concatenating inputs and outputs into the structure expected by the model
-- optionally appending the spatial validity mask to the target tensor
-- optionally applying data augmentation such as flips and rotations
-
-The output format matches the model signature used in training:
-
-- image inputs for gridded variables
-- one-dimensional boundary inputs for along-boundary forcing
-- output tensors with an additional mask channel used by the loss
-
-### `preprocessing_utils.py`
-
-This module contains lower-level preprocessing helpers used during dataset creation. It provides:
-
-- min/max normalization
-- NaN cleanup
-- channel reshaping for temporal slices
-- wind-stress related helper functions used to derive normalized auxiliary variables
-
-### `TurboSwanModel.py`
-
-This file contains the main model architecture used by `train_network.py`.
-
-The model combines:
-
-- a convolutional encoder-decoder for 2D raster inputs
-- residual blocks in both the downsampling and upsampling paths
-- a dense branch for boundary-condition inputs
-- a fusion stage that merges raster and boundary representations before reconstruction
-- a masked loss that ignores invalid grid cells during optimization
-
-Architecturally, it behaves like a residual U-Net variant with an additional boundary-input branch.
-
-### `model_class.py`
-
-This file contains an earlier model variant. It implements a similar residual encoder-decoder structure, but without the explicit boundary-input branch found in `TurboSwanModel.py`.
-
-## Data Expectations
-
-The training code assumes that data preparation has already produced:
-
-- TFRecord files containing serialized tensors for all configured variables
-- a NetCDF file with min/max values for normalization
-- a NumPy validity mask file
-
-Given a configured `tfrecord_dir`, the training script currently expects at least:
-
-- `train_data/`
-- `val_data/`
-- `valid-mask.npy`
-- `min_max_files/min-max-values-all.nc`
-
-In the current training script, the configured variables are grouped into:
-
-- gridded inputs `xwnd`, `ywnd`, and `wl`
-- outputs `hs`
-- boundary variables `hs_bnd`, `tp_bnd`, and `theta0_bnd`
-
-The preprocessing code also assumes fixed spatial dimensions and specific boundary lengths, so dataset generation and model training must stay aligned on shape conventions.
-
-## Outputs
-
-Training artifacts are written to a model-specific directory under `trained_models/`. These artifacts typically include:
-
-- TensorBoard logs
-- best-checkpoint model weights
-- the final saved model
-- a copy of the training source files used for that run
-
-## Scripts
-
-The `scripts/` folder contains utility programs for dataset generation, min/max computation, experiment execution, TFRecord writing, and hyperparameter tuning. These scripts support the broader workflow around model training, but they are separate from the core training implementation in `train-network/`.
-
-## Notebooks
-
-The `notebooks/` folder contains exploratory, validation, and analysis notebooks. These are useful for inspecting datasets, reviewing model predictions, generating validation material, and experimenting interactively, but they are not the primary implementation surface for the training pipeline.
-
+Changing the model architecture or data meaning is a scientific change and should be agreed with the TurboSWAN researchers.
