@@ -76,8 +76,7 @@ object BuildTrainingImage : BuildType({
                 
                 echo "Building: ${'$'}IMAGE"
                 
-                docker build \
-                    --tag "${'$'}IMAGE" \
+                docker build --tag "${'$'}IMAGE" .
             """.trimIndent()
         }
         script {
