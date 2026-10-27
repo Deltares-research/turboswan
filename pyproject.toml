@@ -33,7 +33,7 @@ environments = [
 ]
 
 [tool.uv.sources]
-# needs to be on nexus, private package; local copy for now
+# needs to be on nexus, see MLPS-245
 deltares-ai-platform-sdk = { path = "deltares_ai_platform_sdk", editable = true }
 
 [build-system]
