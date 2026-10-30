@@ -1,0 +1,12 @@
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!configs/
+!deltares_ai_platform_sdk/
+!deltares_ai_platform_sdk/**
+deltares_ai_platform_sdk/.venv/
+deltares_ai_platform_sdk/.git/
+**/__pycache__
+**/*.pyc

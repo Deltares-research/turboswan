@@ -1,20 +1,18 @@
+import numpy as np
 import tensorflow as tf
-from tensorflow.keras import Model, Input
+import tensorflow.keras.backend as K
+from tensorflow.keras import Input, Model
 from tensorflow.keras.layers import (
+    AveragePooling2D,
+    BatchNormalization,
+    Concatenate,
     Conv2D,
     Conv2DTranspose,
-    BatchNormalization,
-    Dropout,
-    MaxPooling2D,
-    UpSampling2D,
-    Concatenate,
-    ZeroPadding2D,
     Cropping2D,
-    AveragePooling2D,
-    Lambda,
+    Dropout,
+    UpSampling2D,
+    ZeroPadding2D,
 )
-import numpy as np
-import tensorflow.keras.backend as K
 
 
 class TurboSwanModel:
@@ -92,15 +90,17 @@ class TurboSwanModel:
         return apply
 
     def create_input_model(self, model_input):
-        # x = Lambda(self.conditional_padding_to_512)(model_input)
-        x = ZeroPadding2D(((15, 16), (45, 46)))(model_input)
+        height, width = self.input_shape[0], self.input_shape[1]
+        divisor = 2 ** (len(self.widths) - 2)  # one halving per DownBlock stage
+        self._height_padding = self._axis_padding(height, divisor)
+        self._width_padding = self._axis_padding(width, divisor)
+        x = ZeroPadding2D((self._height_padding, self._width_padding))(model_input)
         x = self.ResidualBlock(self.widths[0])(x)
         return x
 
     def create_output_model(self, x):
         x = self.ResidualBlock(self.widths[0])(x)
-        # x = Lambda(lambda t: self.conditional_crop_to_original(t))(x)
-        x = Cropping2D(((15, 16), (45, 46)))(x)
+        x = Cropping2D((self._height_padding, self._width_padding))(x)
         x = Conv2DTranspose(
             len(self.output_variables),
             kernel_size=1,
@@ -163,43 +163,13 @@ class TurboSwanModel:
         return (x * (maximum - minimum)) + minimum
 
     @staticmethod
-    def conditional_padding_to_512(x):
-        input_shape = tf.shape(x)
-        height_pad = tf.maximum(512 - input_shape[1], 0)
-        width_pad = tf.maximum(512 - input_shape[2], 0)
-
-        pad_top = height_pad // 2
-        pad_bottom = height_pad - pad_top
-        pad_left = width_pad // 2
-        pad_right = width_pad - pad_left
-
-        paddings = [[0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]]
-        return tf.cond(
-            tf.logical_or(height_pad > 0, width_pad > 0),
-            lambda: tf.pad(x, paddings),
-            lambda: x,
-        )
-
-    @staticmethod
-    def conditional_crop_to_original(x, target_height=481, target_width=421):
-        input_shape = tf.shape(x)
-        height_crop = input_shape[1] - target_height
-        width_crop = input_shape[2] - target_width
-
-        crop_top = height_crop // 2
-        crop_bottom = height_crop - crop_top
-        crop_left = width_crop // 2
-        crop_right = width_crop - crop_left
-
-        cropped = x[
-            :,
-            crop_top : input_shape[1] - crop_bottom,
-            crop_left : input_shape[2] - crop_right,
-            :,
-        ]
-        return tf.cond(
-            tf.logical_or(height_crop > 0, width_crop > 0), lambda: cropped, lambda: x
-        )
+    def _axis_padding(size: int, divisor: int) -> tuple:
+        """Pad size up to the next multiple of divisor, split as evenly as possible."""
+        remainder = size % divisor
+        total_pad = 0 if remainder == 0 else divisor - remainder
+        pad_before = total_pad // 2
+        pad_after = total_pad - pad_before
+        return pad_before, pad_after
 
     @staticmethod
     def circular_error(a, b, to_rad=True):

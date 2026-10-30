@@ -1,12 +1,10 @@
-import numpy as np
+from pathlib import Path
 
+import numpy as np
 import tensorflow as tf
 import xarray as xr
-import preprocessing_utils
 
-
-from typing import Union, List, Optional
-from pathlib import Path
+from turboswan.core import preprocessing_utils
 
 
 def get_files(data_path: str):
@@ -17,11 +15,13 @@ def get_files(data_path: str):
 def get_dataset(
     files: list,
     min_max_ds: xr.Dataset,
-    variable_fields: List[str],
-    input_variables: List[str],
-    output_variables: List[str],
-    boundary_variables: List[str],
-    indices: List[int],
+    variable_fields: list[str],
+    input_variables: list[str],
+    output_variables: list[str],
+    boundary_variables: list[str],
+    indices: list[int],
+    raster_height: int,
+    raster_width: int,
     valid_mask: np.ndarray = None,
 ):
     """return a tfrecord dataset with all tfrecord files"""
@@ -36,6 +36,8 @@ def get_dataset(
             boundary_variables=boundary_variables,
             valid_mask=valid_mask,
             indices=indices,
+            raster_height=raster_height,
+            raster_width=raster_width,
         )
     )
     return dataset
@@ -44,12 +46,14 @@ def get_dataset(
 def tf_parse(
     example_proto,
     min_max_ds: xr.Dataset,
-    variable_fields: List[str],
-    input_variables: List[str],
-    output_variables: List[str],
-    boundary_variables: List[str],
+    variable_fields: list[str],
+    input_variables: list[str],
+    output_variables: list[str],
+    boundary_variables: list[str],
+    raster_height: int,
+    raster_width: int,
     valid_mask: np.ndarray = None,
-    indices: List[int] = [1, 2],
+    indices: list[int] = [1, 2],
 ):
     # Define the TFRecord schema
     parse_dict = {
@@ -74,9 +78,11 @@ def tf_parse(
         )
 
         if var in input_variables:
-            tensor = preprocessing_utils.reshape_channels(tensor, indices=indices)
+            tensor = preprocessing_utils.reshape_channels(
+                tensor, indices=indices, height=raster_height, width=raster_width
+            )
         elif var in output_variables:
-            tensor = tf.reshape(tensor, (481, 421, 1))
+            tensor = tf.reshape(tensor, (raster_height, raster_width, 1))
         elif var in boundary_variables:
             tensor = tf.reshape(tensor, (106, 1))
 
@@ -88,7 +94,7 @@ def tf_parse(
     boundary_inputs = tf.concat([variables[var] for var in boundary_variables], axis=-1)
     if valid_mask is not None:
         valid_mask = tf.convert_to_tensor(valid_mask, dtype=tf.float32)
-        valid_mask = tf.reshape(valid_mask, (481, 421, 1))
+        valid_mask = tf.reshape(valid_mask, (raster_height, raster_width, 1))
         outputs = tf.concat([outputs, valid_mask], axis=-1)
 
     if len(boundary_inputs) > 0:
@@ -100,7 +106,7 @@ def tf_parse(
 
 
 def load_min_max_ds(
-    file_path: Union[Path, str], boundary_variables: List[str] = []
+    file_path: Path | str, boundary_variables: list[str] = []
 ) -> xr.Dataset:
     min_max_ds = xr.open_dataset(file_path)
     min_max_ds["tp"] = [min_max_ds["tps"].values[0], min_max_ds["tps"].values[1]]
@@ -120,19 +126,21 @@ def load_min_max_ds(
 
 
 def create_dataset(
-    file_dir: Union[Path, str],
+    file_dir: Path | str,
     min_max_ds: xr.Dataset,
-    variable_fields: List[str],
-    input_variables: List[str],
-    output_variables: List[str],
-    boundary_variables: List[str],
+    variable_fields: list[str],
+    input_variables: list[str],
+    output_variables: list[str],
+    boundary_variables: list[str],
     valid_mask: np.ndarray,
-    indices: List[int],
+    indices: list[int],
     batch_size: int,
+    raster_height: int,
+    raster_width: int,
     seed=0,
-    flip_horizontal: Optional[bool] = False,
-    flip_vertical: Optional[bool] = False,
-    rotate_180: Optional[bool] = False,
+    flip_horizontal: bool | None = False,
+    flip_vertical: bool | None = False,
+    rotate_180: bool | None = False,
 ):
     files = get_files(str(file_dir))
     dataset = get_dataset(
@@ -143,6 +151,8 @@ def create_dataset(
         output_variables=output_variables,
         boundary_variables=boundary_variables,
         indices=indices,
+        raster_height=raster_height,
+        raster_width=raster_width,
         valid_mask=valid_mask,
     )
 
@@ -163,9 +173,9 @@ def create_dataset(
 def augment_pair(
     input_image: tf.Tensor,
     output_image: tf.Tensor,
-    flip_horizontal: Optional[bool] = False,
-    flip_vertical: Optional[bool] = False,
-    rotate_90: Optional[bool] = True,
+    flip_horizontal: bool | None = False,
+    flip_vertical: bool | None = False,
+    rotate_90: bool | None = True,
 ):
     xtau = input_image[..., :2]
     ytau = input_image[..., 2:4]

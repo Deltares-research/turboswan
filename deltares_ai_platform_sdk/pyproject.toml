@@ -1,0 +1,23 @@
+[project]
+name = "deltares-ai-platform-sdk"
+version = "0.1.0"
+description = "Shared S3, MLflow, KServe, and Ray helpers for the Deltares AI Platform"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3",
+    "pandas>=2.0,<3",
+    "numpy>=1.26,<2",
+    "scikit-learn",
+    "mlflow>=3.15.1,<4",
+    "kubernetes",
+    # Exact pin: must match RAY_VERSION in ai-platform-k8s ray-worker + helm values.
+    "ray==2.56.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.2,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "deltares_ai_platform_sdk"
+module-root = "src"
