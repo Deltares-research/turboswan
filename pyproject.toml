@@ -27,6 +27,12 @@ gpu = [
     "tensorflow[and-cuda]>=2.21.0; sys_platform == 'linux'",
 ]
 
+[[tool.uv.index]]
+name = "python-internal"
+url = "https://internal-artifacts.deltares.nl/repository/python-internal/simple/"
+authenticate = "always"
+default = true
+
 [tool.uv]
 environments = [
     "python_version == '3.12' and (sys_platform != 'win32' or platform_machine != 'ARM64')",
