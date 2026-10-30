@@ -1,6 +1,6 @@
 [project]
 name = "turboswan"
-version = "0.1.1"
+version = "0.1.0"
 description = "TurboSWAN training, experiment tracking, and sweep workflows"
 readme = "README.md"
 requires-python = ">=3.12"
