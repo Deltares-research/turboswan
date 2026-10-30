@@ -14,5 +14,8 @@ changeProject(DslContext.projectId) {
         add {
             param("env.UV_INDEX_PYTHON_INTERNAL_USERNAME", "heerkens")
         }
+        add {
+            password("env.UV_INDEX_PYTHON_INTERNAL_PASSWORD", "credentialsJSON:ddbc3822-a3a1-49cc-8f17-ed8daf88e8f8")
+        }
     }
 }
