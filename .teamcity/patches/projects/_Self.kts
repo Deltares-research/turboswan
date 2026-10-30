@@ -12,10 +12,10 @@ accordingly, and delete the patch script.
 changeProject(DslContext.projectId) {
     params {
         add {
-            param("env.UV_INDEX_PYTHON_INTERNAL_USERNAME", "heerkens")
+            password("env.UV_INDEX_PYTHON_INTERNAL_PASSWORD", "credentialsJSON:ddbc3822-a3a1-49cc-8f17-ed8daf88e8f8")
         }
         add {
-            password("env.UV_INDEX_PYTHON_INTERNAL_PASSWORD", "credentialsJSON:ddbc3822-a3a1-49cc-8f17-ed8daf88e8f8")
+            param("env.UV_INDEX_PYTHON_INTERNAL_USERNAME", "rtdjvryc")
         }
     }
 }
