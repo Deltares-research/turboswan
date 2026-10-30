@@ -59,7 +59,10 @@ object BuildTrainingImage : BuildType({
                 
                 echo "Building: ${'$'}IMAGE"
                 
-                docker build --tag "${'$'}IMAGE" .
+                docker build \
+                    --secret id=uv_index_username,env=UV_INDEX_PYTHON_INTERNAL_USERNAME \
+                    --secret id=uv_index_password,env=UV_INDEX_PYTHON_INTERNAL_PASSWORD \
+                    --tag "${'$'}IMAGE" .
             """.trimIndent()
         }
         script {
