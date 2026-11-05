@@ -1,6 +1,6 @@
 [project]
 name = "turboswan"
-version = "0.1.1"
+version = "0.1.0"
 description = "TurboSWAN training, experiment tracking, and sweep workflows"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -8,7 +8,7 @@ dependencies = [
     "deltares-ai-platform-sdk",
     "keras-tuner>=1.4.8",
     "matplotlib>=3.11.1",
-    "mlflow==3.15.1",
+    "mlflow==3.17.0",
     "netcdf4>=1.7.4",
     "optuna>=4.0",
     "pandas>=2.0.3,<3",
@@ -19,6 +19,8 @@ dependencies = [
     "xarray>=2026.7.0",
     "ray==2.56.1",
     "pytest>=9.1.1",
+    "pillow>=13.0.0",
+    "certifi>=2026.10.19",
     "ipykernel",
 ]
 
