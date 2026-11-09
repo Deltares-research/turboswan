@@ -15,6 +15,7 @@ object BuildTrainingImage : BuildType({
         param("CONTAINER_REPO", "training")
         param("IMAGE_TAG", "unset")
         param("SKIP_BUILD", "false")
+        param("env.IS_DEFAULT_BRANCH", "%teamcity.build.branch.is_default%")
     }
 
     vcs {
@@ -35,7 +36,7 @@ object BuildTrainingImage : BuildType({
                 
                 echo "Detected package version: ${'$'}VERSION"
                 
-                if [ "%teamcity.build.branch.is_default%" = "true" ]; then
+                if [ "${'$'}IS_DEFAULT_BRANCH" = "true" ]; then
                     TAG="${'$'}VERSION"
                 else
                     SHORT_SHA=${'$'}(echo "%build.vcs.number%" | cut -c1-7)
@@ -46,17 +47,12 @@ object BuildTrainingImage : BuildType({
                 echo "##teamcity[setParameter name='PACKAGE_VERSION' value='${'$'}VERSION']"
                 echo "##teamcity[setParameter name='IMAGE_TAG' value='${'$'}TAG']"
             """.trimIndent()
-            dockerImage = "containers.deltares.nl/docker-proxy/python:3.12-slim"
+            dockerImage = "%CONTAINER_REGISTRY%/docker-proxy/python:3.12-slim"
         }
         script {
             name = "Skip release if image already exists"
             id = "Skip_release_if_image_already_exists"
             scriptContent = """
-                if [ "%teamcity.build.branch.is_default%" != "true" ]; then
-                    echo "Dev build, skipping existence check"
-                    exit 0
-                fi
-                
                 IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Checking whether image already exists: ${'$'}IMAGE"
@@ -79,12 +75,10 @@ object BuildTrainingImage : BuildType({
         script {
             name = "Build image"
             id = "Build_image"
+            conditions {
+                doesNotEqual("SKIP_BUILD", "true")
+            }
             scriptContent = """
-                if [ "%SKIP_BUILD%" = "true" ]; then
-                    echo "Release image already exists, skipping build"
-                    exit 0
-                fi
-                
                 IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Building: ${'$'}IMAGE"
@@ -98,12 +92,10 @@ object BuildTrainingImage : BuildType({
         script {
             name = "Push image"
             id = "Push_image"
+            conditions {
+                doesNotEqual("SKIP_BUILD", "true")
+            }
             scriptContent = """
-                if [ "%SKIP_BUILD%" = "true" ]; then
-                    echo "Release image already exists, skipping push"
-                    exit 0
-                fi
-                
                 IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Pushing: ${'$'}IMAGE"
