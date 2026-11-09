@@ -63,7 +63,7 @@ object BuildTrainingImage : BuildType({
                     exit 0
                 fi
                 
-                if echo "${'$'}OUTPUT" | grep -Eiq "no such manifest|manifest unknown"; then
+                if echo "${'$'}OUTPUT" | grep -Eiq "no such manifest|manifest unknown|artifact .* not found"; then
                     echo "Image tag is available: ${'$'}IMAGE"
                 else
                     echo "Unexpected error checking ${'$'}IMAGE:"
