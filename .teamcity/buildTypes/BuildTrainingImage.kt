@@ -3,6 +3,7 @@ package buildTypes
 import jetbrains.buildServer.configs.kotlin.*
 import jetbrains.buildServer.configs.kotlin.buildFeatures.dockerRegistryConnections
 import jetbrains.buildServer.configs.kotlin.buildSteps.script
+import jetbrains.buildServer.configs.kotlin.triggers.vcs
 
 object BuildTrainingImage : BuildType({
     name = "Build training image"
@@ -12,6 +13,9 @@ object BuildTrainingImage : BuildType({
         param("CONTAINER_PROJECT", "turboswan")
         param("PACKAGE_VERSION", "unset")
         param("CONTAINER_REPO", "training")
+        param("IMAGE_TAG", "unset")
+        param("SKIP_BUILD", "false")
+        param("env.IS_DEFAULT_BRANCH", "%teamcity.build.branch.is_default%")
     }
 
     vcs {
@@ -31,31 +35,51 @@ object BuildTrainingImage : BuildType({
                 ")
                 
                 echo "Detected package version: ${'$'}VERSION"
+                
+                if [ "${'$'}IS_DEFAULT_BRANCH" = "true" ]; then
+                    TAG="${'$'}VERSION"
+                else
+                    SHORT_SHA=${'$'}(echo "%build.vcs.number%" | cut -c1-7)
+                    TAG="dev-${'$'}VERSION-${'$'}SHORT_SHA"
+                fi
+                
+                echo "Image tag: ${'$'}TAG"
                 echo "##teamcity[setParameter name='PACKAGE_VERSION' value='${'$'}VERSION']"
+                echo "##teamcity[setParameter name='IMAGE_TAG' value='${'$'}TAG']"
             """.trimIndent()
-            dockerImage = "containers.deltares.nl/docker-proxy/python:3.12-slim"
+            dockerImage = "%CONTAINER_REGISTRY%/docker-proxy/python:3.12-slim"
         }
         script {
-            name = "Fail if image already exists"
-            id = "Fail_if_image_already_exists"
+            name = "Skip release if image already exists"
+            id = "Skip_release_if_image_already_exists"
             scriptContent = """
-                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%PACKAGE_VERSION%"
+                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Checking whether image already exists: ${'$'}IMAGE"
                 
-                if docker manifest inspect "${'$'}IMAGE" >/dev/null 2>&1; then
-                    echo "Image already exists: ${'$'}IMAGE"
-                    exit 1
+                if OUTPUT=${'$'}(docker manifest inspect "${'$'}IMAGE" 2>&1); then
+                    echo "Image already exists: ${'$'}IMAGE. Skipping build and push."
+                    echo "##teamcity[setParameter name='SKIP_BUILD' value='true']"
+                    exit 0
                 fi
                 
-                echo "Image tag is available: ${'$'}IMAGE"
+                if echo "${'$'}OUTPUT" | grep -Eiq "no such manifest|manifest unknown|artifact .* not found"; then
+                    echo "Image tag is available: ${'$'}IMAGE"
+                else
+                    echo "Unexpected error checking ${'$'}IMAGE:"
+                    echo "${'$'}OUTPUT"
+                    exit 1
+                fi
             """.trimIndent()
         }
         script {
             name = "Build image"
             id = "Build_image"
+            conditions {
+                doesNotEqual("SKIP_BUILD", "true")
+            }
             scriptContent = """
-                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%PACKAGE_VERSION%"
+                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Building: ${'$'}IMAGE"
                 
@@ -68,13 +92,22 @@ object BuildTrainingImage : BuildType({
         script {
             name = "Push image"
             id = "Push_image"
+            conditions {
+                doesNotEqual("SKIP_BUILD", "true")
+            }
             scriptContent = """
-                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%PACKAGE_VERSION%"
+                IMAGE="%CONTAINER_REGISTRY%/%CONTAINER_PROJECT%/%CONTAINER_REPO%:%IMAGE_TAG%"
                 
                 echo "Pushing: ${'$'}IMAGE"
                 
                 docker push "${'$'}IMAGE"
             """.trimIndent()
+        }
+    }
+
+    triggers {
+        vcs {
+            branchFilter = "+:<default>"
         }
     }
 
