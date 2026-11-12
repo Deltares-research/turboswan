@@ -13,8 +13,7 @@ import keras
 import matplotlib.pyplot as plt
 
 from turboswan import training
-from turboswan.mlops.tracking.metadata import label_names
-
+from turboswan.mlops.tracking.metadata import label_names, default_variable_descriptions
 
 def create_training_history_plot(
     history: keras.callbacks.History,
@@ -70,7 +69,7 @@ def create_preprocessing_artifacts(
         Paths to upload to MLflow: the four files above plus the original
         normalization and mask input files.
     """
-    descriptions = dict(config.mlflow.variable_descriptions if config.mlflow else {})
+    descriptions = default_variable_descriptions(config)
     if variable_descriptions is not None:
         descriptions.update(variable_descriptions)
     min_max_ds, valid_mask = training.load_normalization(config.data)

@@ -17,6 +17,7 @@ import pandas as pd
 import tensorflow as tf
 from deltares_ai_platform_sdk.mlflow_utils import configure_tracking
 from mlflow.data.pandas_dataset import from_pandas
+from mlflow.data.sources import LocalArtifactDatasetSource
 from mlflow.models.signature import ModelSignature
 from mlflow.tracking import MlflowClient
 from mlflow.types.schema import Schema, TensorSpec
@@ -169,7 +170,7 @@ def log_tfrecord_inputs(config: training.TrainConfig) -> None:
         )
         dataset = from_pandas(
             manifest,
-            source=recorded_data_source(config, location),
+            source=LocalArtifactDatasetSource(recorded_data_source(config, location)),
             name=f"TurboSWAN {context} TFRecords",
             digest=tfrecord_manifest_digest(tfrecord_files),
         )

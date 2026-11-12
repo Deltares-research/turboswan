@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--resume-study",
         metavar="STUDY_NAME",
-        help="optuna only: continue this study (turboswan-<hash>-NNN, see the optuna_study_name "
+        help="optuna only: continue this study (<experiment_name>-<hash>-NNN, see the optuna_study_name "
         "tag on a sweep's parent run) instead of starting a new one. Its hash must match the "
         "current search. For slurm executors it applies only when the sweep is first created.",
     )

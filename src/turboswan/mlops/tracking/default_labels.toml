@@ -1,0 +1,45 @@
+# Readable MLflow names shared by every experiment. Display only: they never
+# change training or sweep selection. A recipe can rename or add entries under
+# [mlflow.parameter_labels] and [mlflow.variable_descriptions]; its entries win.
+# Settings without a label are not shown in MLflow but stay in metadata/config.json.
+
+[parameter_labels]
+"run.mode" = "Run - mode"
+"run.model_version" = "Run - model version"
+"data.source" = "Data - source"
+"data.resolved_train_dir" = "Data - training split"
+"data.resolved_val_dir" = "Data - validation split"
+"data.max_tfrecords" = "Data - maximum TFRecord shards per split"
+"data.input_variables" = "Data - raster input variables"
+"data.output_variables" = "Data - predicted variables"
+"data.boundary_variables" = "Data - boundary forcing variables"
+"data.indices" = "Data - temporal indices"
+"data.shuffle_buffer_size" = "Data - shuffle buffer size"
+"data.seed" = "Data - random seed"
+"augmentation.flip_horizontal" = "Augmentation - horizontal flip"
+"augmentation.flip_vertical" = "Augmentation - vertical flip"
+"augmentation.rotate_180" = "Augmentation - 180-degree rotation"
+"model.widths" = "Model - feature channels per U-Net stage from shallow to bottleneck"
+"model.block_depth" = "Model - residual blocks per stage"
+"model.kernel_size" = "Model - convolution kernel size in pixels"
+"model.dropout" = "Model - dropout enabled"
+"training.batch_size" = "Training - samples per optimisation step"
+"training.n_epochs" = "Training - epochs"
+"training.steps_per_epoch" = "Training - mini-batches per epoch"
+"training.validation_steps" = "Validation - mini-batches per epoch"
+"training.learning_rate" = "Training - initial learning rate"
+"training.lr_decay_steps" = "Training - learning-rate decay steps"
+"training.lr_decay_rate" = "Training - learning-rate decay factor"
+"comparison.name" = "Comparison {index} - name"
+"comparison.subdir" = "Comparison {index} - data folder"
+"comparison.sample_file" = "Comparison {index} - source file"
+"comparison.reference" = "Comparison {index} - reference"
+
+[variable_descriptions]
+xwnd = "east-west wind component"
+ywnd = "north-south wind component"
+wl = "water level"
+hs = "significant wave height"
+hs_bnd = "boundary significant wave height"
+tp_bnd = "boundary peak wave period"
+theta0_bnd = "boundary wave direction"

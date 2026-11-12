@@ -48,18 +48,18 @@ def score(outcome: dict, overrides: dict, config_index: int, selection_metric: s
 	return result, value
 
 
-def configure_tracking(base_config: dict) -> training.MLflowConfig:
-	"""Select the sweep's MLflow tracking and return the base config's [mlflow] section."""
+def configure_tracking(base_config: dict) -> tuple[training.MLflowConfig, str]:
+	"""Select the sweep's MLflow tracking; return the base config's [mlflow] section and the tracking URI."""
 	validated = training.TrainConfig.model_validate(base_config)
 	mlflow_config = validated.mlflow
 	if mlflow_config is None:
 		raise ValueError("the sweep's base config needs an [mlflow] section")
-	configure_run_tracking(
+	tracking_uri = configure_run_tracking(
 		mlflow_config.experiment_name,
 		mode=validated.run.mode,
 		local_tracking_dir=mlflow_config.local_tracking_dir,
 	)
-	return mlflow_config
+	return mlflow_config, tracking_uri
 
 
 def parent_tags(config_tags: dict, sweep_id: str, search: SearchStrategy) -> dict:
@@ -68,7 +68,7 @@ def parent_tags(config_tags: dict, sweep_id: str, search: SearchStrategy) -> dic
 		"project": "turboswan",
 		"run_type": "sweep",
 		"sweep_id": sweep_id,
-		**getattr(search, "mlflow_tags", {}),
+		**search.mlflow_tags,
 	}
 
 
