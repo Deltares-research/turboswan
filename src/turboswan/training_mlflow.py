@@ -112,8 +112,6 @@ def track_training_run(
             name=mlflow_config.model_name,
             # The signature records the shapes the model takes in and gives out.
             signature=build_model_signature(model),
-            # Packages needed to load the model again elsewhere.
-            pip_requirements=["tensorflow>=2.21.0", "keras>=3.15.1"],
             registered_model_name=mlflow_config.registered_model_name,
         )
         log_tfrecord_inputs(config)

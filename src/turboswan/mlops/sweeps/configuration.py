@@ -69,6 +69,34 @@ class PrunerConfig(BaseModel):
         return name
 
 
+class SamplerConfig(BaseModel):
+    """
+    ``name`` must match an ``optuna.samplers`` name (e.g., 'TPESampler', 'RandomSampler').
+    Extra fields are assumed to be parameters of the specified sampler. The seed comes
+    from the strategy's ``seed``, so ``seed`` is not accepted here.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def _is_optuna_sampler(cls, name: str) -> str:
+        from optuna import samplers  # lazy: only configs with a sampler need optuna
+
+        valid = [n for n in samplers.__all__ if n.endswith("Sampler") and n != "BaseSampler"]
+        if name not in valid:
+            raise ValueError(f"{name!r} is not an optuna sampler; choose from {valid}")
+        return name
+
+    @model_validator(mode="after")
+    def _no_seed(self) -> SamplerConfig:
+        if self.model_extra and "seed" in self.model_extra:
+            raise ValueError("set the seed with strategy.seed, not in the sampler table")
+        return self
+
+
 class StrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -76,12 +104,15 @@ class StrategyConfig(BaseModel):
     max_configs: PositiveInt
     seed: int = 0
     max_concurrent: PositiveInt = 1
+    sampler: SamplerConfig | None = None
     pruner: PrunerConfig | None = None
 
     @model_validator(mode="after")
-    def _pruner_needs_optuna(self) -> StrategyConfig:
-        if self.pruner is not None and self.name != "optuna":
-            raise ValueError(f"a pruner needs strategy name 'optuna', not {self.name!r}")
+    def _sampler_and_pruner_need_optuna(self) -> StrategyConfig:
+        if self.name != "optuna":
+            for field in ("sampler", "pruner"):
+                if getattr(self, field) is not None:
+                    raise ValueError(f"a {field} needs strategy name 'optuna', not {self.name!r}")
         return self
 
 
@@ -133,6 +164,7 @@ __all__ = [
     "Categorical",
     "Distribution",
     "PrunerConfig",
+    "SamplerConfig",
     "StrategyConfig",
     "SweepConfig",
     "load_sweep",

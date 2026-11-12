@@ -15,7 +15,7 @@ import numpy as np
 
 from turboswan import training
 from turboswan.core import create_datasets
-from turboswan.mlops.tracking.metadata import label_names
+from turboswan.mlops.tracking.metadata import label_names, default_parameter_labels
 
 
 def validate_comparisons(config: training.TrainConfig) -> None:
@@ -108,11 +108,10 @@ def log_comparisons(config: training.TrainConfig, model: keras.Model) -> None:
             "sample_file": Path(files[0]).name,
             "reference": "SWAN hs TFRecord target",
         }
-        # Same rule as for other settings: if the recipe's parameter_labels
-        # lists comparison fields, only those are recorded, under those labels.
+        # Same rule as for other settings: only fields with a label are recorded.
         # A label may contain "{index}" to tell several comparisons apart.
-        labels = config.mlflow.parameter_labels if config.mlflow else {}
-        if labels:
+        labels = default_parameter_labels(config)
+        if config.mlflow:
             params = {
                 field: value for field, value in params.items()
                 if f"comparison.{field}" in labels

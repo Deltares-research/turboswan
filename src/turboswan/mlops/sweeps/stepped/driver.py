@@ -71,9 +71,9 @@ def step_sweep(
 	if state is not None and state.finished:
 		return True
 
-	# 1. create or load
-	mlflow_config = configure_tracking(base_config)
-	client = MlflowClient()
+	# 1. create or load sweep state
+	mlflow_config, tracking_uri = configure_tracking(base_config)
+	client = MlflowClient(tracking_uri)
 	experiment = client.get_experiment_by_name(mlflow_config.experiment_name)
 	if state is None:
 		search = build_search_strategy(
@@ -84,12 +84,12 @@ def step_sweep(
 			client, parent.info.run_id, sweep, strategy, search_space,
 			parent_tags(mlflow_config.tags, sweep_id, search),
 		)
-		study_name = getattr(search, "mlflow_tags", {}).get("optuna_study_name")
-		first_index = getattr(search, "index_offset", 0)
+		study_name = search.mlflow_tags.get("optuna_study_name")
+		first_index = search.index_offset
 		state = SweepState(
 			parent_run_id=parent.info.run_id,
 			study_name=study_name,
-			prior_best=getattr(search, "prior_best", None),
+			prior_best=search.prior_best,
 			first_index=first_index,
 			next_index=first_index,
 		)

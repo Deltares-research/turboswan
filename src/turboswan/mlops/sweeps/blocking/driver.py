@@ -19,7 +19,7 @@ from turboswan.mlops.sweeps.parent_run import (
 	parent_tags,
 	score,
 )
-from turboswan.mlops.sweeps.search import SearchStrategy, build_search_strategy
+from turboswan.mlops.sweeps.search import build_search_strategy
 from turboswan.mlops.sweeps.trial import run_trial
 
 log = logging.getLogger(__name__)
@@ -32,7 +32,6 @@ def run_sweep(
 	base_config: dict,
 	*,
 	sweep_id: str,
-	search: SearchStrategy | None = None,
 	executor: BlockingExecutor | None = None,
 	resume_study: str | None = None,
 	recipe_toml: bytes | None = None,
@@ -40,28 +39,29 @@ def run_sweep(
 	"""Execute a configured sweep under one MLflow parent run and return every trial plus the winner."""
 	if strategy.pruner is not None:
 		raise ValueError("pruning needs the stepped sweep; remove [strategy.pruner] or use step_sweep")
-	mlflow_config = configure_tracking(base_config)
+	# initialize tracking, executor and search strategy
+	mlflow_config, tracking_uri = configure_tracking(base_config)
+	client = MlflowClient(tracking_uri)
 	executor = SequentialExecutor() if executor is None else executor
-	search = (
-		build_search_strategy(
-			sweep, strategy, search_space, base_config, resume_study=resume_study,
-		)
-		if search is None
-		else search
+	search = build_search_strategy(
+		sweep, strategy, search_space, base_config, resume_study=resume_study,
 	)
-	client = MlflowClient()
+	# start the parent MLflow run
 	with mlflow.start_run(run_name=f"sweep-{sweep_id}") as parent:
+		# log search space and sweep/search settings
 		log_sweep_inputs(
 			client, parent.info.run_id, sweep, strategy, search_space,
 			parent_tags(mlflow_config.tags, sweep_id, search),
 		)
 		results = []
 		submitted_overrides = {}
-		first_index = getattr(search, "index_offset", 0)
+		first_index = search.index_offset
 		next_index = first_index
 		in_flight = 0
-		try:
+		try: # try/finally to ensure no jobs are left running in case of error
+			# keep looping until all jobs have been submitted and none are running
 			while next_index < first_index + strategy.max_configs or in_flight:
+				# fill up the available slots with new trials
 				while next_index < first_index + strategy.max_configs and in_flight < strategy.max_concurrent:
 					overrides = {
 						**search.ask(next_index),
@@ -95,9 +95,10 @@ def run_sweep(
 		finally:
 			executor.cancel_all()
 		results.sort(key=lambda result: result["config_index"])
+		# determine best trial, register model if best one across the whole study
 		winner = finalize_sweep(
 			client, parent.info.run_id, results, sweep,
-			getattr(search, "prior_best", None), mlflow_config.registered_model_name,
+			search.prior_best, mlflow_config.registered_model_name,
 		)
 	return {"parent_run_id": parent.info.run_id, "results": results, "winner": winner}
 

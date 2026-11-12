@@ -7,19 +7,17 @@ acceptance criteria.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import os
-import pathlib
 import random
-import re
 from typing import Protocol, runtime_checkable
+
+from deltares_ai_platform_sdk import optuna_utils
 
 from turboswan.mlops.sweeps.configuration import (
     Categorical,
     Distribution,
     PrunerConfig,
+    SamplerConfig,
     StrategyConfig,
     SweepConfig,
     sample_one,
@@ -28,13 +26,17 @@ from turboswan.training import read_dotted
 
 log = logging.getLogger(__name__)
 
-# TODO: replace by postgresql database
-OPTUNA_STORAGE_DIR = pathlib.Path.home() / "turboswan" / "optuna"
-
 
 @runtime_checkable
 class SearchStrategy(Protocol):
     """One configuration out per ``ask`` and one score back per ``tell``."""
+
+    # first config_index; non-zero when resuming a study
+    index_offset: int
+    # best value among a resumed study's completed trials, or None
+    prior_best: float | None
+    # extra tags for the sweep's parent run
+    mlflow_tags: dict[str, str]
 
     def ask(self, config_index: int) -> dict:
         """Return dotted-key parameter overrides for the next trial."""
@@ -58,6 +60,9 @@ class RandomSearch:
         self.search_space = search_space
         self.seed = seed
         self.include_baseline = include_baseline
+        self.index_offset = 0
+        self.prior_best: float | None = None
+        self.mlflow_tags: dict[str, str] = {}
 
     def ask(self, config_index: int) -> dict:
         if self.include_baseline and config_index == 0:
@@ -120,24 +125,22 @@ def _study_key(
     }
     data = {k: v for k, v in base_config.get("data", {}).items() if k != "data_dir"}
     comparable = {k: v for k, v in base_config.items() if k != "mlflow"} | {"run": run, "data": data}
-    payload = json.dumps(
+    return optuna_utils.payload_hash(
         {
             "search_space": {key: spec.model_dump() for key, spec in search_space.items()},
             "base_config": comparable,
             "direction": direction,
             "selection_metric": selection_metric,
-        },
-        sort_keys=True,
-        default=str,
+        }
     )
-    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 class OptunaSearch:
     """Propose configurations with an Optuna study updated as trials complete.
 
-    Studies live in ``TURBOSWAN_OPTUNA_STORAGE`` (default: sqlite under ``OPTUNA_STORAGE_DIR``)
-    and are named ``turboswan-<hash>-<NNN>``. Identical searches share
+    Studies live in the storage resolved by ``optuna_utils.storage_url`` and are named
+    ``<study_prefix>-<hash>-<NNN>``; the sweep passes the MLflow experiment name as prefix,
+    so a study family belongs to one experiment. Identical searches share
     the hash; ``NNN`` counts the studies created for it. Each search starts a new study unless
     ``resume_study`` names an existing one, whose hash must match the current search.
 
@@ -151,11 +154,13 @@ class OptunaSearch:
         search_space: dict[str, Categorical | Distribution],
         base_config: dict,
         *,
+        study_prefix: str,
         seed: int = 0,
         direction: str = "minimize",
         selection_metric: str = "val_loss",
         include_baseline: bool = True,
         resume_study: str | None = None,
+        sampler: SamplerConfig | None = None,
         pruner: PrunerConfig | None = None,
     ):
         import optuna
@@ -164,32 +169,24 @@ class OptunaSearch:
         self._distributions = {
             key: _to_optuna_distribution(spec) for key, spec in search_space.items()
         }
-        storage = os.environ.get("TURBOSWAN_OPTUNA_STORAGE")
-        if not storage:
-            OPTUNA_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-            storage = f"sqlite:///{(OPTUNA_STORAGE_DIR / 'studies.db').as_posix()}"
+        storage = optuna_utils.storage_url()
         key = _study_key(search_space, base_config, direction, selection_metric)
-        prefix = f"turboswan-{key}-"
-        existing = {
-            summary.study_name: summary
-            for summary in optuna.get_all_study_summaries(storage)
-            if summary.study_name.startswith(prefix)
-        }
-        # pruner is not stored in study, so always recreate
+        family = f"{study_prefix}-{key}"
+        existing = optuna_utils.list_studies(storage, family)
+        # pruner is not stored in study, so always recreate; extra config attributes are its kwargs
         pruner_instance = (
-            # pass extra pruner config attributes to pruner class
-            getattr(optuna.pruners, pruner.name)(**(pruner.model_extra or {}))
-            if pruner
-            else None
+            optuna_utils.build_pruner(pruner.name, **(pruner.model_extra or {})) if pruner else None
         )
         resume = resume_study is not None
-        if resume:
-            match = re.fullmatch(r"turboswan-([0-9a-f]{12})-\d+", resume_study)
-            if match is None:
-                raise ValueError(f"{resume_study!r} is not a study name like turboswan-<hash>-NNN")
-            if match.group(1) != key:
+        # sampler is not stored in study either; on resume offset its seed by the prior trials
+        # so it doesn't replay the same draws
+        sampler_name = sampler.name if sampler else None
+        sampler_kwargs = (sampler.model_extra or {}) if sampler else {}
+        if resume_study is not None:
+            resume_key, _ = optuna_utils.parse_study_name(resume_study, study_prefix)
+            if resume_key != key:
                 raise ValueError(
-                    f"study {resume_study} belongs to a different search (hash {match.group(1)}, "
+                    f"study {resume_study} belongs to a different search (hash {resume_key}, "
                     f"current {key}); the hash covers the search space, the base config except "
                     "[mlflow] and environment paths, direction and selection_metric"
                 )
@@ -197,35 +194,25 @@ class OptunaSearch:
                 raise ValueError(
                     f"no study {resume_study}; existing for this search: {sorted(existing)}"
                 )
-            study_name = resume_study
-            n_prior = existing[study_name].n_trials
-            # sampler is also not persisted, so offset seed by prior trials so it doesn't replay the same draws
-            self._study = optuna.load_study(
-                study_name=study_name,
-                storage=storage,
-                sampler=optuna.samplers.TPESampler(seed=seed + n_prior),
+            n_prior = existing[resume_study].n_trials
+            self._study = optuna_utils.load_study(
+                storage,
+                resume_study,
+                sampler=optuna_utils.build_sampler(
+                    sampler_name, seed=seed + n_prior, **sampler_kwargs
+                ),
                 pruner=pruner_instance,
             )
         else:
             n_prior = 0
-            number = max((int(name.removeprefix(prefix)) for name in existing), default=0) + 1
-            while number < 1000:  # arbitrary upper limit to avoid infinite loop
-                study_name = f"{prefix}{number:03d}"
-                try:
-                    self._study = optuna.create_study(
-                        storage=storage,
-                        study_name=study_name,
-                        direction=direction,
-                        sampler=optuna.samplers.TPESampler(seed=seed),
-                        pruner=pruner_instance,
-                    )
-                    break
-                # a concurrent sweep of the same search took this number
-                except optuna.exceptions.DuplicatedStudyError:
-                    number += 1
-            else:
-                # arbitrary limit, but avoids infinite loop and > 1000 identical studies would be odd
-                raise RuntimeError("could not create a unique study name after 1000 attempts")
+            self._study = optuna_utils.create_numbered_study(
+                storage,
+                family,
+                direction=direction,
+                sampler=optuna_utils.build_sampler(sampler_name, seed=seed, **sampler_kwargs),
+                pruner=pruner_instance,
+            )
+        study_name = self._study.study_name
         self.index_offset = n_prior
         self.mlflow_tags = {
             "optuna_study_name": study_name,
@@ -235,13 +222,7 @@ class OptunaSearch:
             "optuna: %s study %s with %d prior trials",
             "resuming" if resume else "created", study_name, n_prior,
         )
-        completed = [
-            t.value
-            for t in self._study.get_trials(
-                deepcopy=False, states=(optuna.trial.TrialState.COMPLETE,)
-            )
-        ]
-        self.prior_best = (min if direction == "minimize" else max)(completed) if completed else None
+        self.prior_best = optuna_utils.best_completed_value(self._study)
         if include_baseline and not resume:
             params = _baseline_params(search_space, base_config)
             if params:
@@ -276,13 +257,10 @@ class OptunaSearch:
         Does not close the trial: cancel its job first, then call ``tell_pruned``. Until then
         the trial stays running, so a failed cancel is retried by the next call.
         """
-        states = self._optuna.trial.TrialState
-        # unfiltered get_trials is ordered by trial number, so the index is the number
-        frozen = self._study.get_trials(deepcopy=False)[config_index]
-        if frozen.state != states.RUNNING:
+        running = optuna_utils.running_trial(self._study, config_index)
+        if running is None:
             return None
-        # optuna has no public way to rebuild a Trial from a stored one; _trial_id is private
-        trial = self._optuna.trial.Trial(self._study, frozen._trial_id)
+        trial, frozen = running
         # a prune decided on an earlier call whose cancel failed; should_prune reads the stored steps
         if frozen.intermediate_values and trial.should_prune():
             return max(frozen.intermediate_values)
@@ -317,11 +295,13 @@ def build_search_strategy(
         return OptunaSearch(
             search_space,
             base_config,
+            study_prefix=base_config["mlflow"]["experiment_name"],
             seed=strategy.seed,
             direction=sweep.direction,
             selection_metric=sweep.selection_metric,
             include_baseline=sweep.include_baseline,
             resume_study=resume_study,
+            sampler=strategy.sampler,
             pruner=strategy.pruner,
         )
     return RandomSearch(

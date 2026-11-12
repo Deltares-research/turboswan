@@ -8,6 +8,7 @@ ones MLflow's naming convention accepts. It never touches the training itself.
 import hashlib
 import json
 import re
+import tomllib
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,6 +23,28 @@ from turboswan import training
 MLFLOW_NAME_PATTERN = r"^[A-Za-z0-9_. /\-]+$"
 
 ParamValue = str | int | float | bool | None
+
+DEFAULT_LABELS_FILE = Path(__file__).with_name("default_labels.toml")
+
+
+def default_labels() -> dict[str, dict[str, str]]:
+    """Labels shared by every recipe, from ``default_labels.toml``."""
+    with DEFAULT_LABELS_FILE.open("rb") as handle:
+        return tomllib.load(handle)
+
+
+def default_parameter_labels(config: training.TrainConfig) -> dict[str, str]:
+    """Default parameter labels overlaid with the recipe's own."""
+    if config.mlflow is None:
+        return {}
+    return {**default_labels()["parameter_labels"], **config.mlflow.parameter_labels}
+
+
+def default_variable_descriptions(config: training.TrainConfig) -> dict[str, str]:
+    """Default variable descriptions overlaid with the recipe's own."""
+    if config.mlflow is None:
+        return {}
+    return {**default_labels()["variable_descriptions"], **config.mlflow.variable_descriptions}
 
 
 @dataclass(frozen=True)
@@ -182,9 +205,11 @@ def build_run_metadata(
     Settings come from the recipe, so they are never typed out twice. Optional
     ``[mlflow]`` sections in the recipe then shape what is shown:
 
-    * ``variable_descriptions`` adds the meaning next to each variable name.
-    * ``parameter_labels`` works as a *shortlist*: when present, only the
-      settings it names are recorded, under the labels it gives.
+    * Parameter labels work as a *shortlist*: only the settings that have a
+      label are recorded. Labels come from ``default_labels.toml``;
+      the recipe's ``parameter_labels`` rename or add to them.
+    * ``variable_descriptions`` adds the meaning next to each variable name,
+      with the same defaults-then-recipe rule.
     * ``tags`` are added to the standard ``project`` and ``run_type`` tags.
 
     Args:
@@ -213,16 +238,15 @@ def build_run_metadata(
     )
     if config.mlflow is not None:
         validate_identifiers(metric_names=config.mlflow.metric_labels.values())
-        descriptions = config.mlflow.variable_descriptions
+        descriptions = default_variable_descriptions(config)
         if descriptions:
             for field in ("input_variables", "output_variables", "boundary_variables"):
                 params[f"data.{field}"] = describe_variables(
                     getattr(config.data, field), descriptions
                 )
-        labels = config.mlflow.parameter_labels
-        if labels:
-            # Shortlist: drop everything the recipe did not label.
-            params = {name: value for name, value in params.items() if name in labels}
+        labels = default_parameter_labels(config)
+        # Shortlist: drop everything without a label.
+        params = {name: value for name, value in params.items() if name in labels}
         names = label_names(params, labels)
         params = {names[name]: value for name, value in params.items()}
     merged_tags = {"project": "turboswan", "run_type": "training"}
