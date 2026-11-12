@@ -1,0 +1,68 @@
+# Local notebook demo; the error map uses one validation example, not an
+# independent scientific evaluation. Training settings match demo.toml.
+
+[data]
+# a folder that already contains the data
+source = "~/turboswan/data/demo"
+train_subdir = "train_data"
+val_subdir = "val_data"
+min_max_file = "min_max_files/min-max-values-all.nc"
+valid_mask_file = "valid-mask.npy"
+max_tfrecords = 2
+input_variables = ["xwnd", "ywnd", "wl"]
+output_variables = ["hs"]
+boundary_variables = ["hs_bnd", "tp_bnd", "theta0_bnd"]
+indices = [3]
+shuffle_buffer_size = 8
+seed = 0
+
+[augmentation]
+flip_horizontal = false
+flip_vertical = false
+rotate_180 = false
+
+[model]
+widths = [4, 8, 8, 8, 8, 8]
+block_depth = 1
+kernel_size = 5
+dropout = true
+
+[training]
+learning_rate = 1e-4
+lr_decay_steps = 10000
+lr_decay_rate = 0.9
+n_epochs = 3
+batch_size = 2
+steps_per_epoch = 3
+validation_steps = 1
+steps_per_execution = 1
+verbose = 2
+
+[run]
+# local = MLflow records stay on this machine (~/turboswan/mlflow unless
+# mlflow.local_tracking_dir is set); dnai = platform MLflow
+mode = "local"
+model_dir = "~/turboswan/trained_models"
+model_version = "turbo_swan_demo"
+tensorboard = false
+histogram_freq = 1
+checkpoint = false
+save_final = false
+
+[mlflow]
+experiment_name = "turboswan/demo-training" # the study: groups related runs
+model_name = "turboswan-hs-demo"
+description = "Small demonstration using the TurboSWAN demo recipe." # why this run; run_name is optional, MLflow names the run if omitted
+
+# Labels describe logged values; they do not change training or sweep selection.
+# Unlisted metrics keep their names. Parameter labels and variable descriptions
+# default to turboswan/mlops/tracking/default_labels.toml; add [mlflow.parameter_labels] or
+# [mlflow.variable_descriptions] only to override.
+[mlflow.metric_labels]
+loss = "Training masked MSE - normalised wave height"
+val_loss = "Validation masked MSE - normalised wave height"
+
+[[comparisons]]
+name = "Demo validation example (not independent evaluation)"
+subdir = "val_data" # folder inside data.source
+plots = ["Error map"]

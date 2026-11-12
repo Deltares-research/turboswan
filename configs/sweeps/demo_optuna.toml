@@ -1,0 +1,24 @@
+# adaptive sweep over demo.toml; optuna proposes next config based on finished trials
+
+[sweep]
+# resolved relative to this file's directory
+base_config_toml = "../demo.toml"
+selection_metric = "val_loss"
+direction = "minimize"
+include_baseline = true
+
+[strategy]
+name = "optuna"
+max_configs = 10
+seed = 0
+# trials in flight at once; every extra one is a config proposed without that trial's score
+max_concurrent = 4
+
+# A bare list is a categorical choice; a table is a distribution.
+[search_space]
+"training.batch_size" = [1, 2, 4]
+
+[search_space."training.learning_rate"]
+kind = "logfloat"
+low = 1e-5
+high = 1e-3

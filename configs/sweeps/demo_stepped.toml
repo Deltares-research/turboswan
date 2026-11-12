@@ -1,0 +1,27 @@
+# Demo sweep for the stepped (Slurm-style) driver, run as real trials in local processes.
+# Run with python -m turboswan.training_sweep_loop --executor local-process --sweep-id <id> [--sweep-config <this file>];
+# training_sweep itself runs one step per call (exit 0 = finished, 75 = call again).
+
+[sweep]
+base_config_toml = "../demo.toml"
+selection_metric = "val_loss"
+include_baseline = true
+
+[strategy]
+name = "optuna"
+max_configs = 15
+max_concurrent = 2
+seed = 0
+
+[strategy.pruner]  # only used by the stepped drivers
+name = "MedianPruner"
+n_startup_trials = 4
+
+[search_space]
+"training.n_epochs" = [10] # override demo.toml so pruning is effective
+"training.batch_size" = [1, 2, 4]
+
+[search_space."training.learning_rate"]
+kind = "logfloat"
+low = 1e-5
+high = 1e-3

@@ -1,0 +1,32 @@
+# A sweep tries one recipe with several different settings and compares the results.
+# Every trial is a complete training run; all trials are grouped under one MLflow run.
+# Run it from the command line with: python -m turboswan.training_sweep
+
+[sweep]
+# the recipe every trial starts from (path relative to this file)
+base_config_toml = "../demo.toml"
+# the number each trial is ranked by. "val_loss" is the validation loss
+# (shown in MLflow under its label from the recipe's [mlflow.metric_labels])
+selection_metric = "val_loss"
+# true = trial 0 is the recipe exactly as written, so you can see whether the
+# other settings beat it. It counts towards max_configs.
+include_baseline = true
+
+[strategy]
+# "random" draws settings at random from the search space below
+name = "random"
+# how many trials in total, including the baseline: 1 baseline + 2 random draws
+max_configs = 3
+# same seed = same draws, so the sweep can be repeated
+seed = 0
+
+# What to vary. Each name is a setting from the recipe, written section.setting.
+# A list means "pick one of these"; a table means "pick a number in a range".
+[search_space]
+"training.batch_size" = [1, 2, 4]
+
+[search_space."training.learning_rate"]
+# logfloat: random numbers spread evenly on a log scale, a good fit for learning rates
+kind = "logfloat"
+low = 1e-5
+high = 1e-3
