@@ -132,4 +132,4 @@ def track_training_run(
 
 
 if __name__ == "__main__":
-    track_training_run(training.load_config(training.get_config_path()))
+    track_training_run(training.load_config_from_cli())

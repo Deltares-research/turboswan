@@ -149,7 +149,7 @@ class TrainConfig(_Section):
         return self
 
 
-def get_config_path() -> pathlib.Path:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train the TurboSwan model from a TOML configuration file."
     )
@@ -159,8 +159,23 @@ def get_config_path() -> pathlib.Path:
         required=True,
         help="Path to the training config TOML file, e.g. configs/demo.toml.",
     )
+    parser.add_argument(
+        "--data",
+        help="Override [data].source from the config with this data folder.",
+    )
     args = parser.parse_args()
-    return args.config.resolve()
+    args.config = args.config.resolve()
+    return args
+
+
+def get_config_path() -> pathlib.Path:
+    return parse_args().config
+
+
+def load_config_from_cli() -> TrainConfig:
+    """Load the config named by --config, applying a --data override if given."""
+    args = parse_args()
+    return load_config(args.config, data_source=args.data)
 
 
 def load_config_source(config_path: pathlib.Path) -> tuple[dict, bytes]:
@@ -178,8 +193,10 @@ def load_raw_config(config_path: pathlib.Path) -> dict:
     return raw
 
 
-def load_config(config_path: pathlib.Path) -> TrainConfig:
+def load_config(config_path: pathlib.Path, data_source: str | None = None) -> TrainConfig:
     raw, recipe_toml = load_config_source(config_path)
+    if data_source is not None:
+        raw.setdefault("data", {})["source"] = data_source
     config = TrainConfig.model_validate(raw)
     config._recipe_toml = recipe_toml
     return config
@@ -492,4 +509,4 @@ def run_training(
 
 
 if __name__ == "__main__":
-    run_training(load_config(get_config_path()))
+    run_training(load_config_from_cli())

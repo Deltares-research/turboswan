@@ -36,3 +36,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Configs are available to the code at /app/configs (relative to the working dir)
 COPY configs ./configs
+
+# demo entrypoint: train on demo.toml, override the data dir with: 
+# docker run -v /host/data:/data <image> --data /data
+# apptainer run [--nv] image.sif --data /path/to/data
+ENTRYPOINT ["python", "-m", "turboswan.training", "--config", "/app/configs/demo.toml"]
