@@ -35,14 +35,19 @@ url = "https://internal-artifacts.deltares.nl/repository/python-internal/simple/
 authenticate = "always"
 default = true
 
+[[tool.uv.index]]
+name = "aiplatform-python-dev"
+url = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/simple/"
+authenticate = "always"
+explicit = true
+
 [tool.uv]
 environments = [
     "python_version == '3.12' and (sys_platform != 'win32' or platform_machine != 'ARM64')",
 ]
 
 [tool.uv.sources]
-# needs to be on nexus, see MLPS-245
-deltares-ai-platform-sdk = { path = "deltares_ai_platform_sdk", editable = true }
+deltares-ai-platform-sdk = { index = "aiplatform-python-dev" }
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]
