@@ -12,16 +12,18 @@ WORKDIR /app
 
 # Dependencies only (cached layer; reinstalled when pyproject.toml or uv.lock change)
 # uv credentials are passed as build secrets in Docker build step
-# the same credentials are used, but specify them for both indexes explicitly
+# each index has its own credentials
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=uv_index_username \
     --mount=type=secret,id=uv_index_password \
+    --mount=type=secret,id=uv_index_aiplatform_username \
+    --mount=type=secret,id=uv_index_aiplatform_password \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     UV_INDEX_PYTHON_INTERNAL_USERNAME="$(cat /run/secrets/uv_index_username)" \
     UV_INDEX_PYTHON_INTERNAL_PASSWORD="$(cat /run/secrets/uv_index_password)" \
-    UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME="$(cat /run/secrets/uv_index_username)" \
-    UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD="$(cat /run/secrets/uv_index_password)" \
+    UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME="$(cat /run/secrets/uv_index_aiplatform_username)" \
+    UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD="$(cat /run/secrets/uv_index_aiplatform_password)" \
     uv sync --locked --extra gpu --no-install-project --no-editable
 
 # Versioned turboswan package from src/ (readme is required by the build metadata)
@@ -30,10 +32,12 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=uv_index_username \
     --mount=type=secret,id=uv_index_password \
+    --mount=type=secret,id=uv_index_aiplatform_username \
+    --mount=type=secret,id=uv_index_aiplatform_password \
     UV_INDEX_PYTHON_INTERNAL_USERNAME="$(cat /run/secrets/uv_index_username)" \
     UV_INDEX_PYTHON_INTERNAL_PASSWORD="$(cat /run/secrets/uv_index_password)" \
-    UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME="$(cat /run/secrets/uv_index_username)" \
-    UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD="$(cat /run/secrets/uv_index_password)" \
+    UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME="$(cat /run/secrets/uv_index_aiplatform_username)" \
+    UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD="$(cat /run/secrets/uv_index_aiplatform_password)" \
     uv sync --locked --extra gpu --no-editable
 
 # Configs are available to the code at /app/configs (relative to the working dir)
