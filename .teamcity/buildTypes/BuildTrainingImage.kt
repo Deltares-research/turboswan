@@ -73,72 +73,6 @@ object BuildTrainingImage : BuildType({
             """.trimIndent()
         }
         script {
-            name = "Check AI Platform Nexus credentials"
-            id = "Check_AI_Platform_Nexus_credentials"
-            conditions {
-                doesNotEqual("SKIP_BUILD", "true")
-            }
-            scriptContent = """
-                set +x
-                python - <<'PY'
-                import base64
-                import hashlib
-                import os
-                import sys
-                import urllib.error
-                import urllib.request
-
-                url = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/simple/"
-                names = ("UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME", "UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD")
-                values = {name: os.environ.get(name, "") for name in names}
-
-                unresolved = False
-                for name, value in values.items():
-                    digest = hashlib.sha256(value.encode()).hexdigest()[:12]
-                    print(f"{name}: length={len(value)} sha256={digest}")
-                    if not value:
-                        print(f"  {name} is empty or unset.")
-                        unresolved = True
-                    elif "keeper:" in value or value.startswith("credentialsJSON:"):
-                        print(f"  {name} was not resolved (still a Keeper/credentialsJSON reference).")
-                        unresolved = True
-                    elif value != value.strip():
-                        print(f"  {name} has leading/trailing whitespace.")
-                if unresolved:
-                    sys.exit("AI Platform Nexus credentials were not resolved.")
-
-                class NoRedirect(urllib.request.HTTPRedirectHandler):
-                    def redirect_request(self, req, fp, code, msg, headers, newurl):
-                        return None
-
-                opener = urllib.request.build_opener(NoRedirect())
-
-                def status(request):
-                    try:
-                        with opener.open(request, timeout=20) as response:
-                            return response.status
-                    except urllib.error.HTTPError as error:
-                        return error.code
-                    except urllib.error.URLError as error:
-                        sys.exit(f"Nexus request failed: {error.reason}")
-
-                print(f"Anonymous HTTP status: {status(urllib.request.Request(url))}")
-
-                credentials = base64.b64encode(
-                    f"{values[names[0]]}:{values[names[1]]}".encode()
-                ).decode("ascii")
-                authenticated = status(
-                    urllib.request.Request(url, headers={"Authorization": f"Basic {credentials}"})
-                )
-                print(f"Authenticated HTTP status: {authenticated}")
-                if authenticated != 200:
-                    sys.exit("Credentials resolved, but Nexus rejected them.")
-                print("Credentials can read the AI Platform development index.")
-                PY
-            """.trimIndent()
-            dockerImage = "%CONTAINER_REGISTRY%/docker-proxy/python:3.12-slim"
-        }
-        script {
             name = "Build image"
             id = "Build_image"
             conditions {
@@ -150,10 +84,8 @@ object BuildTrainingImage : BuildType({
                 echo "Building: ${'$'}IMAGE"
                 
                 docker build \
-                    --secret id=uv_index_username,env=UV_INDEX_PYTHON_INTERNAL_USERNAME \
-                    --secret id=uv_index_password,env=UV_INDEX_PYTHON_INTERNAL_PASSWORD \
-                    --secret id=uv_index_aiplatform_username,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME \
-                    --secret id=uv_index_aiplatform_password,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD \
+                    --secret id=uv_index_username,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME \
+                    --secret id=uv_index_password,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD \
                     --tag "${'$'}IMAGE" .
             """.trimIndent()
         }
