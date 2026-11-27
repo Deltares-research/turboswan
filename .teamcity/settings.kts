@@ -15,6 +15,13 @@ project {
     }
 
     features {
+        feature {
+            id = "KEEPER_VAULT_AI_PLATFORM"
+            type = "OAuthProvider"
+            param("displayName", "Keeper Vault AI Platform")
+            param("providerType", "teamcity-ksm")
+            param("secure:client-secret", "credentialsJSON:671cef29-186a-41d7-9bf9-389c801ea8e4")
+        }
         dockerRegistry {
             id = "PROJECT_EXT_92"
             name = "turboswan"
