@@ -86,6 +86,8 @@ object BuildTrainingImage : BuildType({
                 docker build \
                     --secret id=uv_index_username,env=UV_INDEX_PYTHON_INTERNAL_USERNAME \
                     --secret id=uv_index_password,env=UV_INDEX_PYTHON_INTERNAL_PASSWORD \
+                    --secret id=uv_index_aiplatform_username,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME \
+                    --secret id=uv_index_aiplatform_password,env=UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD \
                     --tag "${'$'}IMAGE" .
             """.trimIndent()
         }

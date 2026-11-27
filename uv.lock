@@ -802,8 +802,8 @@ wheels = [
 
 [[package]]
 name = "deltares-ai-platform-sdk"
-version = "0.1.0"
-source = { editable = "deltares_ai_platform_sdk" }
+version = "0.1.0.dev8179130"
+source = { registry = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/simple/" }
 dependencies = [
     { name = "boto3" },
     { name = "kubernetes" },
@@ -814,17 +814,9 @@ dependencies = [
     { name = "ray" },
     { name = "scikit-learn" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "boto3" },
-    { name = "kubernetes" },
-    { name = "mlflow", specifier = ">=3.15.1,<4" },
-    { name = "numpy", specifier = ">=1.26,<2" },
-    { name = "optuna", specifier = ">=4.0" },
-    { name = "pandas", specifier = ">=2.0,<3" },
-    { name = "ray", specifier = "==2.56.1" },
-    { name = "scikit-learn" },
+sdist = { url = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/packages/deltares-ai-platform-sdk/0.1.0.dev8179130/deltares_ai_platform_sdk-0.1.0.dev8179130.tar.gz", hash = "sha256:0ddd3d6365d03aa48af0b1e680e0173cdc07a1643efcc4dda7234d9c1a1da623", size = 15917, upload-time = "2026-11-17T15:56:10.812Z" }
+wheels = [
+    { url = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/packages/deltares-ai-platform-sdk/0.1.0.dev8179130/deltares_ai_platform_sdk-0.1.0.dev8179130-py3-none-any.whl", hash = "sha256:3fe3e2668956819d403012fb06ec442646e71697ac622cfa2fe44fee152f1c7e", size = 19598, upload-time = "2026-11-17T15:56:10.785Z" },
 ]
 
 [[package]]
@@ -3905,7 +3897,7 @@ gpu = [
 [package.metadata]
 requires-dist = [
     { name = "certifi", specifier = ">=2026.10.19" },
-    { name = "deltares-ai-platform-sdk", editable = "deltares_ai_platform_sdk" },
+    { name = "deltares-ai-platform-sdk", index = "https://internal-artifacts.deltares.nl/repository/aiplatform-python-dev/simple/" },
     { name = "ipykernel" },
     { name = "keras-tuner", specifier = ">=1.4.8" },
     { name = "matplotlib", specifier = ">=3.11.1" },
