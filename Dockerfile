@@ -1,0 +1,38 @@
+FROM containers.deltares.nl/docker-proxy/python:3.12-slim
+
+COPY --from=containers.deltares.nl/docker-proxy/astral/uv:0.13.6 /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# TODO: remove, should be on Nexus, see MLPS-245
+COPY deltares_ai_platform_sdk ./deltares_ai_platform_sdk
+
+# Dependencies only (cached layer; reinstalled when pyproject.toml or uv.lock change)
+# uv credentials are passed as build secrets in Docker build step
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=secret,id=uv_index_username \
+    --mount=type=secret,id=uv_index_password \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    UV_INDEX_PYTHON_INTERNAL_USERNAME="$(cat /run/secrets/uv_index_username)" \
+    UV_INDEX_PYTHON_INTERNAL_PASSWORD="$(cat /run/secrets/uv_index_password)" \
+    uv sync --locked --extra gpu --no-install-project --no-editable
+
+# Versioned turboswan package from src/ (readme is required by the build metadata)
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=secret,id=uv_index_username \
+    --mount=type=secret,id=uv_index_password \
+    UV_INDEX_PYTHON_INTERNAL_USERNAME="$(cat /run/secrets/uv_index_username)" \
+    UV_INDEX_PYTHON_INTERNAL_PASSWORD="$(cat /run/secrets/uv_index_password)" \
+    uv sync --locked --extra gpu --no-editable
+
+# Configs are available to the code at /app/configs (relative to the working dir)
+COPY configs ./configs
