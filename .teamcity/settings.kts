@@ -10,6 +10,8 @@ project {
     buildType(BuildTrainingImage)
 
     params {
+        param("env.UV_INDEX_PYTHON_INTERNAL_USERNAME", "rtdjvryc")
+        password("env.UV_INDEX_PYTHON_INTERNAL_PASSWORD", "credentialsJSON:ddbc3822-a3a1-49cc-8f17-ed8daf88e8f8")
         password("env.UV_INDEX_AIPLATFORM_PYTHON_DEV_USERNAME", "credentialsJSON:cc05e8ae-1c60-4a17-8f8e-d17fe5246e76")
         password("env.UV_INDEX_AIPLATFORM_PYTHON_DEV_PASSWORD", "credentialsJSON:3c8a4833-9522-431f-af43-4f5d2fc9fea7")
     }
